@@ -1,0 +1,129 @@
+/**
+ * All of the CSS for your public-facing functionality should be
+ * included in this file.
+ */
+ .wrap{
+     display: block;
+     width: 100%;
+     background-color: #fff;
+     padding: 20px;
+ }
+
+ .wrap h2{
+     text-align: center;
+ }
+
+ #first_name-input{opacity: 1;}
+ #last_name-input{opacity: 1;}
+ #phone-input{opacity: 1;}
+ #description-input{opacity: 1;}
+ #LinkedInUrl{opacity: 1;}
+ #email-input{opacity: 1;}
+
+input[type=text],
+input[type=email],
+input[type=url],
+input[type=password],
+input[type=search],
+input[type=number],
+input[type=tel],
+input[type=date],
+input[type=month],
+input[type=week],
+input[type=time],
+input[type=datetime],
+input[type=datetime-local],
+input[type=color],
+input[type=file],
+textarea {
+    opacity: 1;
+    width: 100%;
+    background: #fff;
+    border: solid 1px #aaaaaa;
+    height: 3em;
+}
+
+#submit {width: 100%;}
+
+.block, .header.header-icon {
+    margin-bottom: 5px;
+}
+.btn.btn-upload-single {
+    background-color: initial;
+    display: flex;
+}
+.recruit-attachment .box label {
+    display: block;
+    text-align: center;
+    width: 100% !important;
+    background-color: rgb(255, 255, 255) !important;
+    
+}
+.btn-upload-single label::before {
+    color: rgb(255, 255, 255);
+    content: "\00a0 ";
+    margin-right: 10px;
+    position: relative;
+    background-image: url(../../images/upload-solid.svg);
+    background-repeat: no-repeat;
+    padding: 0px 7px;
+    margin: 6px 5px;
+}
+.recruit-attachment .box label::before {
+    color: rgb(34, 34, 34);
+}
+.btn-upload-single input[type="file"] {
+    display: none;
+}
+
+.btn-upload-single label {
+    border: solid 1px #aaaaaa;
+    border-radius: 0px;
+    color: #333;
+    line-height: 1.5;
+    margin: 0 0px;
+    max-width: 100%;
+    padding: 10px 0;
+}
+
+.spinner {
+    margin: 10px auto 0;
+    width: 70px;
+    text-align: center;
+  }
+  
+  .spinner > div {
+    width: 18px;
+    height: 18px;
+    background-color: #333;
+  
+    border-radius: 100%;
+    display: inline-block;
+    -webkit-animation: sk-bouncedelay 1.4s infinite ease-in-out both;
+    animation: sk-bouncedelay 1.4s infinite ease-in-out both;
+  }
+  
+  .spinner .bounce1 {
+    -webkit-animation-delay: -0.32s;
+    animation-delay: -0.32s;
+  }
+  
+  .spinner .bounce2 {
+    -webkit-animation-delay: -0.16s;
+    animation-delay: -0.16s;
+  }
+  
+  @-webkit-keyframes sk-bouncedelay {
+    0%, 80%, 100% { -webkit-transform: scale(0) }
+    40% { -webkit-transform: scale(1.0) }
+  }
+  
+  @keyframes sk-bouncedelay {
+    0%, 80%, 100% { 
+      -webkit-transform: scale(0);
+      transform: scale(0);
+    } 40% { 
+      -webkit-transform: scale(1.0);
+      transform: scale(1.0);
+    }
+  }
