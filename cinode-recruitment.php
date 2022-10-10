@@ -333,7 +333,7 @@ function cinode_recruitment_sanitize_options($input)
 	return $input;
 }
 
-function apiTokenCheck()
+function cinode_recruitment_apiTokenCheck()
 {
 	$cinode_recruitment_options = get_option('cinode_recruitment_options');
 	$companyId = $cinode_recruitment_options['option_companyId'];
@@ -348,9 +348,9 @@ function apiTokenCheck()
 		),
 	);
 
-	$post_result = wp_remote_get($url, $args);
+	$get_result = wp_remote_get($url, $args);
 
-	$json_response =  json_decode(wp_remote_retrieve_body($post_result), true);
+	$json_response =  json_decode(wp_remote_retrieve_body($get_result), true);
 
 	if ($json_response) {
 		return true;
@@ -358,10 +358,47 @@ function apiTokenCheck()
 		return false;
 	}
 }
+function cinode_recruitment_companyAddresses($location_label)
+{
+	$cinode_recruitment_options = get_option('cinode_recruitment_options');
+	$companyId = $cinode_recruitment_options['option_companyId'];
+	$token = $cinode_recruitment_options['option_apiKey'];
+	$url = "https://api.cinode.app/v0.1/companies/" . $companyId;
 
+	$args = array(
+		'headers' => array(
+			'Accept' => 'text/plain, application/json, text/json, application/xml, text/xml',
+			'Content-Type' => 'application/json',
+			'Authorization' => 'Bearer ' . $token,
+		),
+	);
+
+	$get_result = wp_remote_get($url, $args);
+	$json_response =  json_decode(wp_remote_retrieve_body($get_result), true);
+
+	if (sizeof($json_response['addresses']) > 0) {
+
+?>
+		<label for="companyAddressId"><?php echo $location_label; ?></label><br>
+
+		<select name="companyAddressId" id="companyAddressId">
+
+			<?php
+
+			for ($i = 0; $i < sizeof($json_response['addresses']); $i++) {
+				//var_dump($json_response['addresses'][$i]['id']);
+			?>
+				<option value="<?php echo $json_response['addresses'][$i]['id']; ?>"><?php echo $json_response['addresses'][$i]['city']; ?></option>
+			<?php
+			}
+			?>
+		</select>
+	<?php
+	}
+}
 function cinode_recruitment_settings_page()
 {
-?>
+	?>
 	<div class="wrap">
 		<h2>Cinode Recruitment Plugin Options</h2>
 
@@ -370,7 +407,7 @@ function cinode_recruitment_settings_page()
 			$cinode_recruitment_options = get_option('cinode_recruitment_options');
 			$activatedPlugin = '';
 			$apiFieldVal = '';
-			if (apiTokenCheck()) {
+			if (cinode_recruitment_apiTokenCheck()) {
 				$activatedPlugin = 'Plugin is Activated!';
 				$apiFieldVal = '***';
 			}
@@ -403,7 +440,12 @@ function cinode_recruitment_settings_page()
 
 		<p>If you want to set custom parametters for your recruitment, add one of the following combination of parameters. </p>
 
-		<p>[cinode pipelineId = "0" pipelineStageId = "0" recruitmentManagerId = "0" teamId = "0" companyAddressId = "0" recruitmentSourceId = "0" campaignCode = "0" currencyId = "1"]</p>
+		<p>[cinode pipelineId = "0" pipelineStageId = "0" recruitmentManagerId = "0" teamId = "0" recruitmentSourceId = "0" campaignCode = "0" currencyId = "1"]</p>
+		<p>If you want to setup pipelineId, you need to set pipelineStageId. <br>
+			Custom labels for the fields can be changed with tags in shortcode. Text must be inside the quotes "".</p>
+		<p> firstname_label="Custom Name" lastname_label="Custom Last Name" email_label="Custom e-mail" phone_label="Custom Phone" message_label="Custom Message" linkedin_label="Custom LinkedIn" location_label="Custom Location Label" attachment_label="Custom Attachment" accept_label="Custom Accept text" privacy_url="https://google.com" privacy_error="Please Accept GDPR" submitbutton_label="Custom Submit application" successful-submit-msg="Thanks for application" unsuccessful-submit-msg="App Not Send" requiredfield_msg="Custom Required Message"</p>
+		<p>All available shortcodes are:</p>
+		<p>[cinode pipelineId = "0" pipelineStageId = "0" recruitmentManagerId = "0" teamId = "0" recruitmentSourceId = "0" campaignCode = "0" currencyId = "1" firstname_label="Custom Name" lastname_label="Custom Last Name" email_label="Custom e-mail" phone_label="Custom Phone" message_label="Custom Message" linkedin_label="Custom LinkedIn" location_label="Custom Location Label" attachment_label="Custom Attachment" accept_label="Custom Accept text" privacy_url="https://google.com" privacy_error="Please Accept GDPR" submitbutton_label="Custom Submit application" successful-submit-msg="Thanks for application" unsuccessful-submit-msg="App Not Send" requiredfield_msg="Custom Required Message"]</p>
 	</div>
 <?php
 }
@@ -424,15 +466,31 @@ function cinode_recruitment_shortcode($atts = [])
 		'recruitmentsourceid' => 0,
 		'campaigncode' => 0,
 		'currencyid' => 1,
-
+		// add custom labels
+		'firstname_label' => 'First name',
+		'lastname_label' => 'Last name',
+		'email_label' => 'E-mail',
+		'phone_label' => 'Phone',
+		'message_label' => 'Message',
+		'linkedin_label' => 'LinkedIn Url',
+		'location_label' => 'Choose location:',
+		'attachment_label' => 'Attachment',
+		'accept_label' => 'I accept that my personal data is processed in accordance with GDPR',
+		'privacy_url' => '',
+		'privacy_error' => 'You must accept the terms & conditions.',
+		'submitbutton_label' => 'Submit your application',
+		'successful-submit-msg' => 'Thanks for your application, we\'re looking forward to have a look at your profile!',
+		'unsuccessful-submit-msg' => 'Your application is not sent!',
+		'requiredfield_msg' => 'Required field.',
+		'formtitle' => '',
 	), $atts, $shortcode = "cinode");
 
 	ob_start();
 ?>
 
 	<div class="wrap">
-		<h2>WANT TO BE A PART OF OUR TEAM? </h2>
 
+		<h2><?php echo $args['formtitle']; ?></h2>
 		<div role="form" class="cinode-form" lang="en-US" dir="ltr">
 			<form action="#" method="post" id="cinode-form" enctype="multipart/form-data">
 				<script>
@@ -446,52 +504,59 @@ function cinode_recruitment_shortcode($atts = [])
 					var currencyId = <?php echo $args['currencyid']; ?>;
 				</script>
 				<div>
-					<label>First name *<br>
+					<label><?php echo $args['firstname_label']; ?> *<br>
 						<span class=""><input type="text" id="first_name-input" name="first_name" value="" size="100%" class="text " aria-required="true" aria-invalid="false" placeholder=" ">
-							<span role="alert" id="first_name-required" class="alert-required" style="display: none">Required field.</span></span>
+							<span role="alert" id="first_name-required" class="alert-required" style="display: none"><?php echo $args['requiredfield_msg']; ?></span></span>
 					</label><br>
-					<label>Last name *<br>
+					<label><?php echo $args['lastname_label']; ?> *<br>
 						<span class=""><input type="text" id="last_name-input" name="last_name" value="" size="100%" class=" text " aria-required="true" aria-invalid="false" placeholder=" ">
-							<span role="alert" id="last_name-required" class="alert-required" style="display: none">Required field.</span></span> </label><br>
-					<label>E-mail *<br>
-						<span><input id="email-input" type="email" name="email" value="" size="100%" aria-required="true" aria-invalid="false" placeholder=" "></span> </label>
-					<span role="alert" id="email-required" class="alert-required" style="display: none">Required field.</span><br>
-					<label>Phone *<br>
-						<span class=""><input type="text" id="phone-input" placeholder=" " name="phone" value="" size="100%" class=" text" aria-required="true" aria-invalid="false">
-							<span role="alert" id="phone-required" class="alert-required" style="display: none">Required field.</span>
+							<span role="alert" id="last_name-required" class="alert-required" style="display: none"><?php echo $args['requiredfield_msg']; ?></span></span> </label><br>
+					<label><?php echo $args['email_label']; ?> *<br>
+						<span class=""><input type="email" id="email-input" name="email" value="" size="100%" class=" text " aria-required="true" aria-invalid="false" placeholder=" ">
+							<span role="alert" id="email-required" class="alert-required" style="display: none"><?php echo $args['requiredfield_msg']; ?></span></span>
+					</label><br>
+					<label><?php echo $args['phone_label']; ?><br>
+						<span class=""><input type="text" id="phone-input" placeholder=" " name="phone" value="" size="100%" class=" text" aria-required="false" aria-invalid="false">
+							<span role="alert" id="phone-required" class="alert-required" style="display: none"><?php echo $args['requiredfield_msg']; ?></span>
 						</span>
 					</label><br>
-
-					<label>Message <br>
+					<label><?php echo $args['message_label']; ?> <br>
 						<textarea class="autosize" cols="20" id="description-input" name="Description" size="100%" rows="2" style="overflow-wrap: break-word; resize: vertical; height: 150px;"></textarea>
 					</label><br>
-					<label>LinkedIn Url<br>
+					<label><?php echo $args['linkedin_label']; ?><br>
 						<input data-val="true" size="100%" id="LinkedInUrl" name="LinkedInUrl" type="text" value="">
 					</label> <br>
-					<br>
+
+					<?php
+					$location_label = $args['location_label'];
+					cinode_recruitment_companyAddresses($location_label);
+					?>
+					<br><br>
 					<div class="block recruit-attachment">
 						<div class="box">
 							<div class="btn-upload-single">
-								<label for="Attachments">Attachment</label>
+								<label for="Attachments"><?php echo $args['attachment_label']; ?></label>
 								<input id="Attachments" name="Attachments" type="file">
 								<span class="field-validation-valid" data-valmsg-for="Attachments" data-valmsg-replace="true"></span>
 							</div>
 
-							<label id="file-name"></label>
+							
 						</div>
+						<label id="file-name"></label>
 					</div>
 					<br>
 					<input type="checkbox" name="terms" id="terms">
-					I accept that my personal data is processed in accordance with <a href="https://public.app.cinode.com/rekrytering/cinode-terms-and-conditions/" rel="noopener noreferrer" target="_blank">GDPR</a>
+					<a href="<?php echo $args['privacy_url']; ?>" rel="noopener noreferrer" target="_blank">
+						<?php echo $args['accept_label']; ?></a>
 					<br>
-					<span id="terms-validate" style="display:none; color:red;">You must accept the terms & conditions</span>
+					<span id="terms-validate" style="display:none; color:red;"> <?php echo $args['privacy_error']; ?></span>
 				</div>
 		</div>
 
 		<div class="row">
 			<div>
 				<br>
-				<p><input type="submit" id="submit" value="Submit your application"></p>
+				<p><input type="submit" id="submit" value="<?php echo $args['submitbutton_label']; ?>"></p>
 			</div>
 		</div>
 		<div class="spinner" style="display: none;">
@@ -501,10 +566,10 @@ function cinode_recruitment_shortcode($atts = [])
 		</div>
 
 		<div class="alert" id="successful-submit-msg" style="display:none; background: green; color: white; text-align: center;">
-			Thanks for your application, we're looking forward to have a look at your profile!
+			<?php echo $args['successful-submit-msg']; ?>
 		</div>
 		<div class="alert" id="unsuccessful-submit-msg" style="display: none; background: red; color: white; text-align: center;">
-			Your application is not sent!
+			<?php echo $args['unsuccessful-submit-msg']; ?>
 		</div>
 	</div>
 	</div>

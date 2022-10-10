@@ -14,6 +14,7 @@ jQuery(document).ready(function ($) {
     const phone = $("#phone-input");
     const description = $("textarea#description-input");
     const linkedInUrl = $("#LinkedInUrl");
+    const companyAddressSelect = $("#companyAddressId option:selected");
     const file = $("input#Attachments")[0].files[0];
     const terms = $("#terms");
 
@@ -49,6 +50,12 @@ jQuery(document).ready(function ($) {
         if (companyAddressId){
           formData.append("companyAddressId", companyAddressId);
         }
+        else if (companyAddressSelect.length == 1){
+          formData.append("companyAddressId", companyAddressSelect.val());
+        } else{
+          formData.append("companyAddressId", "");
+        }
+
         if (recruitmentSourceId){
           formData.append("recruitmentSourceId", recruitmentSourceId);
         }
@@ -67,8 +74,10 @@ jQuery(document).ready(function ($) {
       let errorMessage = [];
 
       if (email.val() === "") {
-        errorMessage.push("Aplicant email is missing");
+        console.log('prazen email');
         $("#email-required").show();
+        errorMessage.push("Aplicant email is missing");
+        
       } else {
         errorMessage.filter(
           (message) => message !== "Aplicant address is missing"
@@ -79,7 +88,7 @@ jQuery(document).ready(function ($) {
       if (!emailReg.test(email.val())) {
         $("#email-required").show();
       } else {
-        $("#email-required").hide();
+        //$("#email-required").hide();
       }
 
       if (first_name.val() === "") {
@@ -96,13 +105,7 @@ jQuery(document).ready(function ($) {
         errorMessage.filter((message) => message !== "Last Name is missing");
         $("#last_name-required").hide();
       }
-      if (phone.val() === "") {
-        errorMessage.push("Phone is missing");
-        $("#phone-required").show();
-      } else {
-        $("#phone-required").hide();
-        errorMessage.filter((message) => message !== "Phone is missing");
-      }
+      
 
       return errorMessage;
     }
@@ -139,6 +142,7 @@ jQuery(document).ready(function ($) {
           setTimeout(function () {
             $("#unsuccessful-submit-msg").fadeOut("fast");
           }, 6000);
+          $(".spinner").hide();
         }
         
       },

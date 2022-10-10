@@ -9,16 +9,14 @@
      padding: 20px;
  }
 
- .wrap h2{
-     text-align: center;
- }
-
  #first_name-input{opacity: 1;}
  #last_name-input{opacity: 1;}
  #phone-input{opacity: 1;}
  #description-input{opacity: 1;}
  #LinkedInUrl{opacity: 1;}
  #email-input{opacity: 1;}
+ #companyAddressId{opacity: 1;}
+ label {opacity: 1;}
 
 input[type=text],
 input[type=email],
@@ -35,6 +33,7 @@ input[type=datetime],
 input[type=datetime-local],
 input[type=color],
 input[type=file],
+select,
 textarea {
     opacity: 1;
     width: 100%;
@@ -52,13 +51,13 @@ textarea {
     background-color: initial;
     display: flex;
 }
-.recruit-attachment .box label {
+ .recruit-attachment .box label {
     display: block;
     text-align: center;
     width: 100% !important;
     background-color: rgb(255, 255, 255) !important;
     
-}
+} 
 .btn-upload-single label::before {
     color: rgb(255, 255, 255);
     content: "\00a0 ";
