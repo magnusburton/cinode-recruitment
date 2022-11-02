@@ -68,16 +68,15 @@ jQuery(document).ready(function ($) {
       }
     } else {
       $("#terms-validate").show();
+      $(".spinner").hide();
     }
 
     function validateRequiredInputs() {
       let errorMessage = [];
 
       if (email.val() === "") {
-        console.log('prazen email');
         $("#email-required").show();
         errorMessage.push("Aplicant email is missing");
-        
       } else {
         errorMessage.filter(
           (message) => message !== "Aplicant address is missing"
@@ -87,9 +86,7 @@ jQuery(document).ready(function ($) {
       var emailReg = /^([\w-\.]+@([\w-]+\.)+[\w-]{2,4})?$/;
       if (!emailReg.test(email.val())) {
         $("#email-required").show();
-      } else {
-        //$("#email-required").hide();
-      }
+      } 
 
       if (first_name.val() === "") {
         errorMessage.push("First Name is missing");
@@ -106,7 +103,6 @@ jQuery(document).ready(function ($) {
         $("#last_name-required").hide();
       }
       
-
       return errorMessage;
     }
   });

@@ -16,7 +16,7 @@
  * Plugin Name:       Cinode recruitment plugin
  * Plugin URI:        cinode.com
  * Description:       This is Cinode Candidate Recruitment plugin. 
- * Version:           1.0.0
+ * Version:           1.1.0
  * Author:            Cinode
  * Author URI:        cinode.com
  * License:           GPL-2.0+
@@ -33,7 +33,7 @@ if (!defined('WPINC')) {
 /**
  * Currently plugin version.
  */
-define('CINODE_RECRUITMENT_VERSION', '1.0.0');
+define('CINODE_RECRUITMENT_VERSION', '1.1.0');
 
 /**
  * The code that runs during plugin activation.
@@ -177,7 +177,6 @@ function cinode_recruitment_route()
 function cinodeRecruitmentPost($postData)
 {
 
-
 	$cinode_recruitment_options = get_option('cinode_recruitment_options');
 	$companyId = $cinode_recruitment_options['option_companyId'];
 	$token = $cinode_recruitment_options['option_apiKey'];
@@ -216,15 +215,14 @@ function cinodeRecruitmentPost($postData)
 
 	$json_response =  json_decode(wp_remote_retrieve_body($post_result), true);
 
-
-
 	$candidateId = $json_response['id'];
 
+	if (!empty($postData->get_file_params())) {
+		cinode_recruitment_upload_file($postData, $candidateId);
+	}
 
-	$files   = $postData->get_file_params();
-
-	if ($files['files']['name'] != null) {
-		upload_file($postData, $candidateId);
+	if ($post_result['response']['code'] == 201) {
+		cinode_recruitment_send_mail($postData['email']);
 	}
 
 	return $post_result;
@@ -232,7 +230,7 @@ function cinodeRecruitmentPost($postData)
 
 add_action('rest_api_init', 'cinode_recruitment_route');
 
-function upload_file($request, $candidateId)
+function cinode_recruitment_upload_file($request, $candidateId)
 {
 	// Get the file 
 	$files   = $request->get_file_params();
@@ -241,7 +239,6 @@ function upload_file($request, $candidateId)
 	$target_file = $target_dir . basename($files['files']['name']);
 
 	move_uploaded_file($files['files']['tmp_name'], $target_file);
-
 
 	$name       = $files['files']['name'];
 	$type       = $files['files']['type'];
@@ -259,7 +256,7 @@ function upload_file($request, $candidateId)
 
 	$url_attach = 'https://api.cinode.app/v0.1/companies/' . $companyId . '/candidates/' . $candidateId . '/attachments';
 
-	$boundary = boundary();
+	$boundary = cinode_recruitment_boundary();
 
 	$body = '';
 	$body .= '--' . $boundary . "\r\n";
@@ -290,7 +287,7 @@ function upload_file($request, $candidateId)
 	return $post_attach_result;
 }
 
-function boundary()
+function cinode_recruitment_boundary()
 {
 	$alphabet = "abcdefghijklmnopqrstuwxyzABCDEFGHIJKLMNOPQRSTUWXYZ0123456789";
 	$pass = array();
@@ -321,6 +318,7 @@ function cinode_recruitment_register_settings()
 
 	//register our settings
 	register_setting('cinode_recruitment-settings-group', 'cinode_recruitment_options', 'cinode_recruitment_sanitize_options');
+	register_setting('cinode_recruitment-settings-mail', 'cinode_recruitment_options_sendmail', 'cinode_recruitment_sanitize_options_sendmail');
 }
 
 function cinode_recruitment_sanitize_options($input)
@@ -328,6 +326,15 @@ function cinode_recruitment_sanitize_options($input)
 
 	$input['option_companyId']  = sanitize_text_field($input['option_companyId']);
 	$input['option_apiKey'] =  sanitize_text_field($input['option_apiKey']);
+
+
+	return $input;
+}
+function cinode_recruitment_sanitize_options_sendmail($input)
+{
+
+	$input['option_subject']  = sanitize_text_field($input['option_subject']);
+	$input['option_message'] =  sanitize_text_field($input['option_message']);
 
 
 	return $input;
@@ -358,6 +365,17 @@ function cinode_recruitment_apiTokenCheck()
 		return false;
 	}
 }
+function cinode_recruitment_send_mail($email)
+{
+	$to = $email;
+	$headers = array('Content-Type: text/html; charset=UTF-8');
+	$cinode_recruitment_options_sendmail = get_option('cinode_recruitment_options_sendmail');
+	$subject = $cinode_recruitment_options_sendmail['option_subject'];
+	$body = $cinode_recruitment_options_sendmail['option_message'];
+
+	wp_mail($to, $subject, $body, $headers);
+}
+
 function cinode_recruitment_companyAddresses($location_label)
 {
 	$cinode_recruitment_options = get_option('cinode_recruitment_options');
@@ -386,7 +404,7 @@ function cinode_recruitment_companyAddresses($location_label)
 			<?php
 
 			for ($i = 0; $i < sizeof($json_response['addresses']); $i++) {
-				//var_dump($json_response['addresses'][$i]['id']);
+
 			?>
 				<option value="<?php echo $json_response['addresses'][$i]['id']; ?>"><?php echo $json_response['addresses'][$i]['city']; ?></option>
 			<?php
@@ -400,7 +418,7 @@ function cinode_recruitment_settings_page()
 {
 	?>
 	<div class="wrap">
-		<h2>Cinode Recruitment Plugin Options</h2>
+		<h2>Cinode Recruitment Plugin Settings</h2>
 
 		<form method="post" action="options.php">
 			<?php settings_fields('cinode_recruitment-settings-group');
@@ -446,6 +464,37 @@ function cinode_recruitment_settings_page()
 		<p> firstname_label="Custom Name" lastname_label="Custom Last Name" email_label="Custom e-mail" phone_label="Custom Phone" message_label="Custom Message" linkedin_label="Custom LinkedIn" location_label="Custom Location Label" attachment_label="Custom Attachment" accept_label="Custom Accept text" privacy_url="https://google.com" privacy_error="Please Accept GDPR" submitbutton_label="Custom Submit application" successful-submit-msg="Thanks for application" unsuccessful-submit-msg="App Not Send" requiredfield_msg="Custom Required Message"</p>
 		<p>All available shortcodes are:</p>
 		<p>[cinode pipelineId = "0" pipelineStageId = "0" recruitmentManagerId = "0" teamId = "0" recruitmentSourceId = "0" campaignCode = "0" currencyId = "1" firstname_label="Custom Name" lastname_label="Custom Last Name" email_label="Custom e-mail" phone_label="Custom Phone" message_label="Custom Message" linkedin_label="Custom LinkedIn" location_label="Custom Location Label" attachment_label="Custom Attachment" accept_label="Custom Accept text" privacy_url="https://google.com" privacy_error="Please Accept GDPR" submitbutton_label="Custom Submit application" successful-submit-msg="Thanks for application" unsuccessful-submit-msg="App Not Send" requiredfield_msg="Custom Required Message"]</p>
+
+		<h2>Send confirmation mail to candidate</h2>
+
+		<form method="post" action="options.php">
+			<?php settings_fields('cinode_recruitment-settings-mail');
+
+			$cinode_recruitment_options_sendmail = get_option('cinode_recruitment_options_sendmail');
+			if (!$cinode_recruitment_options_sendmail) {
+				$cinode_recruitment_options_sendmail['option_subject'] = 'Thanks for your application';
+				$cinode_recruitment_options_sendmail['option_message'] = 'Thank you for your application. We will look into your application and get back to you soon.';
+			}
+			?>
+			<p>Set confirmation mail to send to candidate.</p>
+			<table class="form-table">
+				<tr valign="top">
+					<th scope="row">Subject</th>
+					<td><input type="text" name="cinode_recruitment_options_sendmail[option_subject]" style="width:50%;" value="<?php echo esc_attr($cinode_recruitment_options_sendmail['option_subject']); ?>" /></td>
+				</tr>
+
+				<tr valign="top">
+					<th scope="row">Message body</th>
+					<td><input type="text" name="cinode_recruitment_options_sendmail[option_message]" style="width:50%;" value="<?php echo $cinode_recruitment_options_sendmail['option_message'] ?>" /></td>
+				</tr>
+
+			</table>
+
+			<p class="submit">
+				<input type="submit" class="button-primary" value="Save email message" />
+			</p>
+		</form>
+		<p>If you want to use custom SMTP server to send mail, please install WP mail SMTP plugin. </p>
 	</div>
 <?php
 }
@@ -540,7 +589,7 @@ function cinode_recruitment_shortcode($atts = [])
 								<span class="field-validation-valid" data-valmsg-for="Attachments" data-valmsg-replace="true"></span>
 							</div>
 
-							
+
 						</div>
 						<label id="file-name"></label>
 					</div>
@@ -572,8 +621,7 @@ function cinode_recruitment_shortcode($atts = [])
 			<?php echo $args['unsuccessful-submit-msg']; ?>
 		</div>
 	</div>
-	</div>
+	
 <?php
-
 	return ob_get_clean();
 }
