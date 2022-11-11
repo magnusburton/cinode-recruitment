@@ -19,6 +19,14 @@ This section describes how to install the plugin and get it working.
 3. Activate the plugin with your CompanyID and API Key/token
 
 ## Releases
+
+### 1.2.0
+https://github.com/Cinode-Labs/cinode-recruitment/releases/tag/v1.2
+
+Update with the following feature:
+
+* Send confirmation email to candidate.
+* Hide location field
 ### 1.0.0
 https://github.com/Cinode-Labs/cinode-recruitment/releases/tag/v1.0.0
 

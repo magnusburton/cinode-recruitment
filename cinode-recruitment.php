@@ -411,6 +411,7 @@ function cinode_recruitment_companyAddresses($location_label)
 			}
 			?>
 		</select>
+		<br>
 	<?php
 	}
 }
@@ -464,7 +465,7 @@ function cinode_recruitment_settings_page()
 		<p> firstname_label="Custom Name" lastname_label="Custom Last Name" email_label="Custom e-mail" phone_label="Custom Phone" message_label="Custom Message" linkedin_label="Custom LinkedIn" location_label="Custom Location Label" attachment_label="Custom Attachment" accept_label="Custom Accept text" privacy_url="https://google.com" privacy_error="Please Accept GDPR" submitbutton_label="Custom Submit application" successful-submit-msg="Thanks for application" unsuccessful-submit-msg="App Not Send" requiredfield_msg="Custom Required Message"</p>
 		<p>All available shortcodes are:</p>
 		<p>[cinode pipelineId = "0" pipelineStageId = "0" recruitmentManagerId = "0" teamId = "0" recruitmentSourceId = "0" campaignCode = "0" currencyId = "1" firstname_label="Custom Name" lastname_label="Custom Last Name" email_label="Custom e-mail" phone_label="Custom Phone" message_label="Custom Message" linkedin_label="Custom LinkedIn" location_label="Custom Location Label" attachment_label="Custom Attachment" accept_label="Custom Accept text" privacy_url="https://google.com" privacy_error="Please Accept GDPR" submitbutton_label="Custom Submit application" successful-submit-msg="Thanks for application" unsuccessful-submit-msg="App Not Send" requiredfield_msg="Custom Required Message"]</p>
-
+		<p>If you want to hide Location field use shortcode tag location_label="". If there is no text, field is not shown in the form.</p>	
 		<h2>Send confirmation mail to candidate</h2>
 
 		<form method="post" action="options.php">
@@ -578,9 +579,12 @@ function cinode_recruitment_shortcode($atts = [])
 
 					<?php
 					$location_label = $args['location_label'];
-					cinode_recruitment_companyAddresses($location_label);
+					if ($location_label!='')
+					{
+						cinode_recruitment_companyAddresses($location_label);
+					}
 					?>
-					<br><br>
+					<br>
 					<div class="block recruit-attachment">
 						<div class="box">
 							<div class="btn-upload-single">
