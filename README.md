@@ -20,6 +20,12 @@ This section describes how to install the plugin and get it working.
 
 ## Releases
 
+### 1.3.0
+https://github.com/Cinode-Labs/cinode-recruitment/releases/tag/v1.3
+
+Update with the following feature:
+* Option to hide location field
+
 ### 1.2.0
 https://github.com/Cinode-Labs/cinode-recruitment/releases/tag/v1.2
 
