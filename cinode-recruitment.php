@@ -415,6 +415,32 @@ function cinode_recruitment_companyAddresses($location_label)
 	<?php
 	}
 }
+
+function cinode_recruitment_multiplepipelines($multiplepipelines_label, $pipelines_string,$stageIds)
+{
+	$pipelines_pairs = explode(',', $pipelines_string);
+	
+	$stage = explode(',',$stageIds);
+
+
+	foreach ($pipelines_pairs as $pair) {
+		$pipelines[] = explode(':', $pair);
+	}
+	
+
+	echo '<label for="SelectedPipeline">' . $multiplepipelines_label;
+	'</label>';
+	echo '<br><select id="selectedPipelineId">';
+	echo '<option value=""></option>';
+	
+	$i=0;
+	foreach($pipelines as $pair ){
+	  echo '<option value="'.$pair[0].'" stageId="'.$stage[$i].'">'.$pair[1].'</option>';
+	  $i++;
+	}
+	echo "</select><br>";
+}
+
 function cinode_recruitment_settings_page()
 {
 	?>
@@ -516,6 +542,8 @@ function cinode_recruitment_shortcode($atts = [])
 		'recruitmentsourceid' => 0,
 		'campaigncode' => 0,
 		'currencyid' => 1,
+		'multiplepipelines' =>'',
+		'multiplepipelinestageid' => 0,
 		// add custom labels
 		'firstname_label' => 'First name',
 		'lastname_label' => 'Last name',
@@ -524,6 +552,7 @@ function cinode_recruitment_shortcode($atts = [])
 		'message_label' => 'Message',
 		'linkedin_label' => 'LinkedIn Url',
 		'location_label' => 'Choose location:',
+		'multiplepipelines_label' => '',
 		'attachment_label' => 'Attachment',
 		'accept_label' => 'I accept that my personal data is processed in accordance with GDPR',
 		'privacy_url' => '',
@@ -583,6 +612,14 @@ function cinode_recruitment_shortcode($atts = [])
 					{
 						cinode_recruitment_companyAddresses($location_label);
 					}
+					
+					$multiplepipelines_label =$args['multiplepipelines_label'];
+					$pipelines_string = $args['multiplepipelines'];
+					$pipelines_stageId = $args['multiplepipelinestageid'];
+					if(($pipelines_string)){
+						cinode_recruitment_multiplepipelines($multiplepipelines_label, $pipelines_string, $pipelines_stageId);
+					}
+					
 					?>
 					<br>
 					<div class="block recruit-attachment">
