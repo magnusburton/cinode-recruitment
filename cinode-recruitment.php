@@ -163,6 +163,10 @@ function cinode_recruitment_route()
 						'type' => 'int',
 						'description' => 'campaignCode',
 					),
+					'availableFrom' => array(
+						'type' => 'int',
+						'description' => 'availableFrom',
+					),
 
 					'files' => array(),
 
@@ -197,7 +201,7 @@ function cinodeRecruitmentPost($postData)
 		'teamId' => $postData['teamId'],
 		'companyAddressId' => $postData['companyAddressId'],
 		'recruitmentSourceId' => $postData['recruitmentSourceId'],
-		'currencyId' => $postData['currencyId'],
+		'availableFromDate' => $postData['availableFrom'],
 	);
 
 
@@ -376,6 +380,14 @@ function cinode_recruitment_send_mail($email)
 	wp_mail($to, $subject, $body, $headers);
 }
 
+function cinode_recruitment_availableFrom($availableFrom_label){
+	?>
+	<label for="availableFrom"><?php echo $availableFrom_label; ?></label><br>
+	<input type="date" id="availableFrom" />
+	<br>
+	<?php 
+}
+
 function cinode_recruitment_companyAddresses($location_label)
 {
 	$cinode_recruitment_options = get_option('cinode_recruitment_options');
@@ -544,6 +556,8 @@ function cinode_recruitment_shortcode($atts = [])
 		'currencyid' => 1,
 		'multiplepipelines' =>'',
 		'multiplepipelinestageid' => 0,
+		'availableFrom' => 0,
+		'availablefrom_label' => '',
 		// add custom labels
 		'firstname_label' => 'First name',
 		'lastname_label' => 'Last name',
@@ -610,6 +624,12 @@ function cinode_recruitment_shortcode($atts = [])
 					$location_label = $args['location_label'];
 					if ($location_label != '') {
 						cinode_recruitment_companyAddresses($location_label);
+					}
+
+					$availableFrom_label = $args['availablefrom_label'];
+					if ($availableFrom_label!='')
+					{	
+						cinode_recruitment_availableFrom($availableFrom_label);
 					}
 					
 					$multiplepipelines_label =$args['multiplepipelines_label'];
