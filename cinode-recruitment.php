@@ -491,7 +491,7 @@ function cinode_recruitment_settings_page()
 		<p> firstname_label="Custom Name" lastname_label="Custom Last Name" email_label="Custom e-mail" phone_label="Custom Phone" message_label="Custom Message" linkedin_label="Custom LinkedIn" location_label="Custom Location Label" attachment_label="Custom Attachment" accept_label="Custom Accept text" privacy_url="https://google.com" privacy_error="Please Accept GDPR" submitbutton_label="Custom Submit application" successful-submit-msg="Thanks for application" unsuccessful-submit-msg="App Not Send" requiredfield_msg="Custom Required Message"</p>
 		<p>All available shortcodes are:</p>
 		<p>[cinode pipelineId = "0" pipelineStageId = "0" recruitmentManagerId = "0" teamId = "0" recruitmentSourceId = "0" campaignCode = "0" currencyId = "1" firstname_label="Custom Name" lastname_label="Custom Last Name" email_label="Custom e-mail" phone_label="Custom Phone" message_label="Custom Message" linkedin_label="Custom LinkedIn" location_label="Custom Location Label" attachment_label="Custom Attachment" accept_label="Custom Accept text" privacy_url="https://google.com" privacy_error="Please Accept GDPR" submitbutton_label="Custom Submit application" successful-submit-msg="Thanks for application" unsuccessful-submit-msg="App Not Send" requiredfield_msg="Custom Required Message"]</p>
-		<p>If you want to hide Location field use shortcode tag location_label="". If there is no text, field is not shown in the form.</p>	
+		<p>If you want to hide Location field use shortcode tag location_label="". If there is no text, field is not shown in the form.</p>
 		<h2>Send confirmation mail to candidate</h2>
 
 		<form method="post" action="options.php">
@@ -608,8 +608,7 @@ function cinode_recruitment_shortcode($atts = [])
 
 					<?php
 					$location_label = $args['location_label'];
-					if ($location_label!='')
-					{
+					if ($location_label != '') {
 						cinode_recruitment_companyAddresses($location_label);
 					}
 					
@@ -641,28 +640,29 @@ function cinode_recruitment_shortcode($atts = [])
 					<br>
 					<span id="terms-validate" style="display:none; color:red;"> <?php echo $args['privacy_error']; ?></span>
 				</div>
-		</div>
+				<div class="row">
+					<div>
+						<br>
+						<p><input type="submit" id="submit" value="<?php echo $args['submitbutton_label']; ?>"></p>
+					</div>
+				</div>
+				<div class="spinner" style="display: none;">
+					<div class="bounce1"></div>
+					<div class="bounce2"></div>
+					<div class="bounce3"></div>
+				</div>
 
-		<div class="row">
-			<div>
-				<br>
-				<p><input type="submit" id="submit" value="<?php echo $args['submitbutton_label']; ?>"></p>
-			</div>
-		</div>
-		<div class="spinner" style="display: none;">
-			<div class="bounce1"></div>
-			<div class="bounce2"></div>
-			<div class="bounce3"></div>
-		</div>
-
-		<div class="alert" id="successful-submit-msg" style="display:none; background: green; color: white; text-align: center;">
-			<?php echo $args['successful-submit-msg']; ?>
-		</div>
-		<div class="alert" id="unsuccessful-submit-msg" style="display: none; background: red; color: white; text-align: center;">
-			<?php echo $args['unsuccessful-submit-msg']; ?>
+				<div class="alert" id="successful-submit-msg" style="display:none; background: green; color: white; text-align: center;">
+					<?php echo $args['successful-submit-msg']; ?>
+				</div>
+				<div class="alert" id="unsuccessful-submit-msg" style="display: none; background: red; color: white; text-align: center;">
+					<?php echo $args['unsuccessful-submit-msg']; ?>
+				</div>
+			</form>
 		</div>
 	</div>
-	
+
+
 <?php
 	return ob_get_clean();
 }
