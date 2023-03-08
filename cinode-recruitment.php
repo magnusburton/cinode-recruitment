@@ -164,7 +164,7 @@ function cinode_recruitment_route()
 						'description' => 'campaignCode',
 					),
 					'availableFrom' => array(
-						'type' => 'int',
+						'type' => 'string',
 						'description' => 'availableFrom',
 					),
 
@@ -555,7 +555,7 @@ function cinode_recruitment_shortcode($atts = [])
 		'campaigncode' => 0,
 		'currencyid' => 1,
 		'multiplepipelines' =>'',
-		'multiplepipelinestageid' => 0,
+		'multiplepipeline_stageid' => 0,
 		'availableFrom' => 0,
 		'availablefrom_label' => '',
 		// add custom labels
@@ -634,7 +634,7 @@ function cinode_recruitment_shortcode($atts = [])
 					
 					$multiplepipelines_label =$args['multiplepipelines_label'];
 					$pipelines_string = $args['multiplepipelines'];
-					$pipelines_stageId = $args['multiplepipelinestageid'];
+					$pipelines_stageId = $args['multiplepipeline_stageid'];
 					if(($pipelines_string)){
 						cinode_recruitment_multiplepipelines($multiplepipelines_label, $pipelines_string, $pipelines_stageId);
 					}
