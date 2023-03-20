@@ -65,7 +65,7 @@ jQuery(document).ready(function ($) {
           formData.append("companyAddressId", "");
         }
         
-        if (availableFrom){
+        if (availableFrom.length > 0){
           formData.append("availableFrom", availableFrom.val());
         }
 
