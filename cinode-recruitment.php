@@ -16,7 +16,7 @@
  * Plugin Name:       Cinode recruitment plugin
  * Plugin URI:        cinode.com
  * Description:       This is Cinode Candidate Recruitment plugin. 
- * Version:           1.3.0
+ * Version:           1.4.0
  * Author:            Cinode
  * Author URI:        cinode.com
  * License:           GPL-2.0+
@@ -33,7 +33,7 @@ if (!defined('WPINC')) {
 /**
  * Currently plugin version.
  */
-define('CINODE_RECRUITMENT_VERSION', '1.3.0');
+define('CINODE_RECRUITMENT_VERSION', '1.4.0');
 
 /**
  * The code that runs during plugin activation.
@@ -302,44 +302,6 @@ function cinode_recruitment_boundary()
 
 add_action('admin_menu', 'cinode_recruitment_create_menu');
 
-function cinode_recruitment_create_menu()
-{
-
-	$iconUrl = plugin_dir_url(__FILE__) . 'images/icon-24x24.png';
-	//create new top-level menu
-	add_menu_page('Cinode Recruitment Plugin Page', 'Cinode Recruitment Plugin', 'manage_options', 'cinode_recruitment_main_menu', 'cinode_recruitment_settings_page', $iconUrl);
-
-	//call register settings function
-	add_action('admin_init', 'cinode_recruitment_register_settings');
-}
-
-function cinode_recruitment_register_settings()
-{
-
-	//register our settings
-	register_setting('cinode_recruitment-settings-group', 'cinode_recruitment_options', 'cinode_recruitment_sanitize_options');
-	register_setting('cinode_recruitment-settings-mail', 'cinode_recruitment_options_sendmail', 'cinode_recruitment_sanitize_options_sendmail');
-}
-
-function cinode_recruitment_sanitize_options($input)
-{
-
-	$input['option_companyId']  = sanitize_text_field($input['option_companyId']);
-	$input['option_apiKey'] =  sanitize_text_field($input['option_apiKey']);
-
-
-	return $input;
-}
-function cinode_recruitment_sanitize_options_sendmail($input)
-{
-
-	$input['option_subject']  = sanitize_text_field($input['option_subject']);
-	$input['option_message'] =  sanitize_text_field($input['option_message']);
-
-
-	return $input;
-}
-
 function cinode_recruitment_apiTokenCheck()
 {
 	$cinode_recruitment_options = get_option('cinode_recruitment_options');
@@ -440,92 +402,6 @@ function cinode_recruitment_multiplepipelines($multiplepipelines_label, $pipelin
 	}
 	echo "</select><br>";
 }
-
-function cinode_recruitment_settings_page()
-{
-	?>
-	<div class="wrap">
-		<h2>Cinode Recruitment Plugin Settings</h2>
-
-		<form method="post" action="options.php">
-			<?php settings_fields('cinode_recruitment-settings-group');
-			$cinode_recruitment_options = get_option('cinode_recruitment_options');
-			$activatedPlugin = '';
-			$apiFieldVal = '';
-			if (cinode_recruitment_apiTokenCheck()) {
-				$activatedPlugin = 'Plugin is Activated!';
-				$apiFieldVal = '***';
-			}
-			wp_nonce_field('cinode_recruitment_settings_form_save', 'cinode_recruitment_nonce_field'); ?>
-			<p>Welcome to Cinode Recruitment Plugin settings page. Set your Company ID and API key.</p>
-			<table class="form-table">
-				<tr valign="top">
-					<th scope="row">Company ID</th>
-					<td><input type="text" name="cinode_recruitment_options[option_companyId]" value="<?php echo esc_attr($cinode_recruitment_options['option_companyId']); ?>" /></td>
-				</tr>
-
-				<tr valign="top">
-					<th scope="row">API Key</th>
-					<td><input type="password" name="cinode_recruitment_options[option_apiKey]" value="<?php echo $apiFieldVal ?>" /></td>
-				</tr>
-
-			</table>
-			<p style="color:green; font-weight:bold;"> <?php echo $activatedPlugin;  ?></p>
-
-			<p class="submit">
-				<input type="submit" class="button-primary" value="Save Changes" />
-			</p>
-		</form>
-
-
-		<h3>How to use shortcode</h3>
-
-		<p>Default shortcode: [cinode]</p>
-		<p>Insert your shortcode into your page or post.</p>
-
-		<p>If you want to set custom parametters for your recruitment, add one of the following combination of parameters. </p>
-
-		<p>[cinode pipelineId = "0" pipelineStageId = "0" recruitmentManagerId = "0" teamId = "0" recruitmentSourceId = "0" campaignCode = "0" currencyId = "1"]</p>
-		<p>If you want to setup pipelineId, you need to set pipelineStageId. <br>
-			Custom labels for the fields can be changed with tags in shortcode. Text must be inside the quotes "".</p>
-		<p> firstname_label="Custom Name" lastname_label="Custom Last Name" email_label="Custom e-mail" phone_label="Custom Phone" message_label="Custom Message" linkedin_label="Custom LinkedIn" location_label="Custom Location Label" attachment_label="Custom Attachment" accept_label="Custom Accept text" privacy_url="https://google.com" privacy_error="Please Accept GDPR" submitbutton_label="Custom Submit application" successful-submit-msg="Thanks for application" unsuccessful-submit-msg="App Not Send" requiredfield_msg="Custom Required Message"</p>
-		<p>All available shortcodes are:</p>
-		<p>[cinode pipelineId = "0" pipelineStageId = "0" recruitmentManagerId = "0" teamId = "0" recruitmentSourceId = "0" campaignCode = "0" currencyId = "1" firstname_label="Custom Name" lastname_label="Custom Last Name" email_label="Custom e-mail" phone_label="Custom Phone" message_label="Custom Message" linkedin_label="Custom LinkedIn" location_label="Custom Location Label" attachment_label="Custom Attachment" accept_label="Custom Accept text" privacy_url="https://google.com" privacy_error="Please Accept GDPR" submitbutton_label="Custom Submit application" successful-submit-msg="Thanks for application" unsuccessful-submit-msg="App Not Send" requiredfield_msg="Custom Required Message"]</p>
-		<p>If you want to hide Location field use shortcode tag location_label="". If there is no text, field is not shown in the form.</p>
-		<h2>Send confirmation mail to candidate</h2>
-
-		<form method="post" action="options.php">
-			<?php settings_fields('cinode_recruitment-settings-mail');
-
-			$cinode_recruitment_options_sendmail = get_option('cinode_recruitment_options_sendmail');
-			if (!$cinode_recruitment_options_sendmail) {
-				$cinode_recruitment_options_sendmail['option_subject'] = 'Thanks for your application';
-				$cinode_recruitment_options_sendmail['option_message'] = 'Thank you for your application. We will look into your application and get back to you soon.';
-			}
-			?>
-			<p>Set confirmation mail to send to candidate.</p>
-			<table class="form-table">
-				<tr valign="top">
-					<th scope="row">Subject</th>
-					<td><input type="text" name="cinode_recruitment_options_sendmail[option_subject]" style="width:50%;" value="<?php echo esc_attr($cinode_recruitment_options_sendmail['option_subject']); ?>" /></td>
-				</tr>
-
-				<tr valign="top">
-					<th scope="row">Message body</th>
-					<td><input type="text" name="cinode_recruitment_options_sendmail[option_message]" style="width:50%;" value="<?php echo $cinode_recruitment_options_sendmail['option_message'] ?>" /></td>
-				</tr>
-
-			</table>
-
-			<p class="submit">
-				<input type="submit" class="button-primary" value="Save email message" />
-			</p>
-		</form>
-		<p>If you want to use custom SMTP server to send mail, please install WP mail SMTP plugin. </p>
-	</div>
-<?php
-}
-
 
 add_shortcode('cinode', 'cinode_recruitment_shortcode');
 
@@ -639,6 +515,8 @@ function cinode_recruitment_shortcode($atts = [])
 						<?php echo $args['accept_label']; ?></a>
 					<br>
 					<span id="terms-validate" style="display:none; color:red;"> <?php echo $args['privacy_error']; ?></span>
+					<input type="hidden" name="g-recaptcha-response" value="" id="g-recaptcha-response">
+					<?php do_action( 'c4wp_captcha_form_field' ); ?>
 				</div>
 				<div class="row">
 					<div>
