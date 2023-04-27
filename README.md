@@ -19,6 +19,11 @@ This section describes how to install the plugin and get it working.
 3. Activate the plugin with your CompanyID and API Key/token
 
 ## Releases
+### 1.4.1
+https://github.com/Cinode-Labs/cinode-recruitment/releases/tag/v1.4.1
+
+Fixes for search and help update
+
 ### 1.4.0
 https://github.com/Cinode-Labs/cinode-recruitment/releases/tag/v1.4
 
