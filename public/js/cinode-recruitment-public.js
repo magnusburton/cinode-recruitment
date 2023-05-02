@@ -4,7 +4,7 @@ jQuery(document).ready(function ($) {
     $("#file-name").text(this.files[0].name);
   });
 
-  $(this).on("submit", (event) => {
+  $('.cinode-form').submit(function(event) {
     event.preventDefault();
     $(".spinner").show();
     const email = $("#email-input");
