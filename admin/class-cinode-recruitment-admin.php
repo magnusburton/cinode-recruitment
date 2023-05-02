@@ -194,9 +194,9 @@ function cinode_recruitment_settings_page()
 	<p></p>
 	<p>If you want to enable field for availableFrom use shortcode tag: availableFrom_label="Available from:"</p>
 	<p></p>
-	<p>If you want enable field for multi pipeline selection add shortcode tags, example: [cinode multiplepipelines="1235:Pipeline 1,1676:Pipeline 2" multiplepipelinestageid="6003,7783" multiplepipelines_label="Multiple Pipeline select one"]</p>
+	<p>If you want enable field for multi pipeline selection add shortcode tags, example: [cinode multiplepipelines="1235:Pipeline 1,1676:Pipeline 2" multiplepipeline_stageid="6003,7783" multiplepipelines_label="Multiple Pipeline select one"]</p>
 	<p>multiplepipelines="pipelineID:Pipeline Label for dropdown"</p>
-	<p>multiplepipelinestageid="StageID corespondin to PipelineID"</p>
+	<p>multiplepipeline_stageid="StageID corespondin to PipelineID"</p>
 	<p>multiplepipelines_label="Label on top of the dropdown"</p>
 	<h2>Send confirmation mail to candidate</h2>
 
