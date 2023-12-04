@@ -19,6 +19,15 @@ This section describes how to install the plugin and get it working.
 3. Activate the plugin with your CompanyID and API Key/token
 
 ## Releases
+### 1.5
+https://github.com/Cinode-Labs/cinode-recruitment/releases/tag/v1.5
+
+Update with the following feature:
+
+* Multiple forms on same page
+* Check if token has expired
+* other fixes and optimization
+
 ### 1.4.1
 https://github.com/Cinode-Labs/cinode-recruitment/releases/tag/v1.4.1
 
