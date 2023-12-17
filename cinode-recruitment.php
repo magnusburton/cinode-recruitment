@@ -16,7 +16,7 @@
  * Plugin Name:       Cinode recruitment plugin
  * Plugin URI:        cinode.com
  * Description:       This is Cinode Candidate Recruitment plugin. 
- * Version:           1.4.1
+ * Version:           1.5
  * Author:            Cinode
  * Author URI:        cinode.com
  * License:           GPL-2.0+
@@ -33,7 +33,7 @@ if (!defined('WPINC')) {
 /**
  * Currently plugin version.
  */
-define('CINODE_RECRUITMENT_VERSION', '1.4.1');
+define('CINODE_RECRUITMENT_VERSION', '1.5');
 
 /**
  * The code that runs during plugin activation.
@@ -213,33 +213,24 @@ function cinodeRecruitmentPost($postData)
 
 	);
 
-	try {
 		$post_result = wp_remote_post($url, $args);
 	
 		$response_code = wp_remote_retrieve_response_code($post_result);
-	
-		if ($response_code === 401) {
-			throw new Exception();
-			
-		}
-	
-		
+
+	if ($response_code != 401) {
 		$json_response = json_decode(wp_remote_retrieve_body($post_result), true);
-	
-		
+
 		$candidateId = $json_response['id'];
 
-	if (!empty($postData->get_file_params())) {
-		cinode_recruitment_upload_file($postData, $candidateId);
-	}
+		if (!empty($postData->get_file_params())) {
+			cinode_recruitment_upload_file($postData, $candidateId);
+		}
 
-	if ($post_result['response']['code'] == 201) {
-		cinode_recruitment_send_mail($postData['email']);
+		if ($post_result['response']['code'] == 201) {
+			cinode_recruitment_send_mail($postData['email']);
+		}
 	}
-	
-	} catch (Exception $e) {
-		echo $e->getMessage();
-	}
+		
 
 	return $post_result;
 }
@@ -378,14 +369,11 @@ function cinode_recruitment_companyAddresses($location_label)
 		),
 	);
 
-	try {
 		$get_result = wp_remote_get($url, $args);
 	
 		$response_code = wp_remote_retrieve_response_code($get_result);
 	
-		if ($response_code === 401) {
-			throw new Exception();
-		}
+		if ($response_code != 401) {
 	
 		$json_response = json_decode(wp_remote_retrieve_body($get_result), true);
 	
@@ -410,12 +398,7 @@ function cinode_recruitment_companyAddresses($location_label)
 			<?php
 			}
 	
-	} catch (Exception $e) {
-		echo $e->getMessage();
-	}
-
-	
-	
+	} 
 }
 
 function cinode_recruitment_multiplepipelines($multiplepipelines_label, $pipelines_string, $stageIds)
