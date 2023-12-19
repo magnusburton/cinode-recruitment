@@ -152,11 +152,13 @@ function cinode_recruitment_settings_page()
 		$activatedPlugin = '';
 		$apiFieldVal = '';
 		if (cinode_recruitment_apiTokenCheck()) {
-			$activatedPlugin = 'Plugin is Activated!';
+			$activatedPlugin = '<span style="color:green; font-weight:bold;">Plugin is Activated!</span>';
 			$apiFieldVal = '***';
+		} else{
+			$activatedPlugin = '<span style="color:red; font-weight:bold;">Plugin is not activated or API token is expired!</span>';
 		}
 		wp_nonce_field('cinode_recruitment_settings_form_save', 'cinode_recruitment_nonce_field'); ?>
-		<p>Welcome to Cinode Recruitment Plugin settings page. Set your Company ID and API key.</p>
+		<p>Welcome to Cinode Recruitment Plugin settings page. Set your Company ID and API token.</p>
 		<table class="form-table">
 			<tr valign="top">
 				<th scope="row">Company ID</th>
@@ -164,12 +166,12 @@ function cinode_recruitment_settings_page()
 			</tr>
 
 			<tr valign="top">
-				<th scope="row">API Key</th>
+				<th scope="row">API Token</th>
 				<td><input type="password" name="cinode_recruitment_options[option_apiKey]" value="<?php echo $apiFieldVal ?>" /></td>
 			</tr>
 
 		</table>
-		<p style="color:green; font-weight:bold;"> <?php echo $activatedPlugin;  ?></p>
+		<p > <?php echo $activatedPlugin;  ?></p>
 
 		<p class="submit">
 			<input type="submit" class="button-primary" value="Save Changes" />

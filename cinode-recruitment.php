@@ -16,7 +16,7 @@
  * Plugin Name:       Cinode recruitment plugin
  * Plugin URI:        cinode.com
  * Description:       This is Cinode Candidate Recruitment plugin. 
- * Version:           1.4.1
+ * Version:           1.5
  * Author:            Cinode
  * Author URI:        cinode.com
  * License:           GPL-2.0+
@@ -33,7 +33,7 @@ if (!defined('WPINC')) {
 /**
  * Currently plugin version.
  */
-define('CINODE_RECRUITMENT_VERSION', '1.4.1');
+define('CINODE_RECRUITMENT_VERSION', '1.5');
 
 /**
  * The code that runs during plugin activation.
@@ -213,19 +213,24 @@ function cinodeRecruitmentPost($postData)
 
 	);
 
-	$post_result = wp_remote_post($url, $args);
+		$post_result = wp_remote_post($url, $args);
+	
+		$response_code = wp_remote_retrieve_response_code($post_result);
 
-	$json_response =  json_decode(wp_remote_retrieve_body($post_result), true);
+	if ($response_code != 401) {
+		$json_response = json_decode(wp_remote_retrieve_body($post_result), true);
 
-	$candidateId = $json_response['id'];
+		$candidateId = $json_response['id'];
 
-	if (!empty($postData->get_file_params())) {
-		cinode_recruitment_upload_file($postData, $candidateId);
+		if (!empty($postData->get_file_params())) {
+			cinode_recruitment_upload_file($postData, $candidateId);
+		}
+
+		if ($post_result['response']['code'] == 201) {
+			cinode_recruitment_send_mail($postData['email']);
+		}
 	}
-
-	if ($post_result['response']['code'] == 201) {
-		cinode_recruitment_send_mail($postData['email']);
-	}
+		
 
 	return $post_result;
 }
@@ -340,12 +345,13 @@ function cinode_recruitment_send_mail($email)
 	wp_mail($to, $subject, $body, $headers);
 }
 
-function cinode_recruitment_availableFrom($availableFrom_label){
-	?>
+function cinode_recruitment_availableFrom($availableFrom_label)
+{
+?>
 	<label for="availableFrom"><?php echo $availableFrom_label; ?></label><br>
 	<input type="date" id="availableFrom" />
 	<br>
-	<?php 
+	<?php
 }
 
 function cinode_recruitment_companyAddresses($location_label)
@@ -363,52 +369,59 @@ function cinode_recruitment_companyAddresses($location_label)
 		),
 	);
 
-	$get_result = wp_remote_get($url, $args);
-	$json_response =  json_decode(wp_remote_retrieve_body($get_result), true);
-
-	if (sizeof($json_response['addresses']) > 0) {
-
-?>
-		<label for="companyAddressId"><?php echo $location_label; ?></label><br>
-
-		<select name="companyAddressId" id="companyAddressId">
-
-			<?php
-
-			for ($i = 0; $i < sizeof($json_response['addresses']); $i++) {
+		$get_result = wp_remote_get($url, $args);
+	
+		$response_code = wp_remote_retrieve_response_code($get_result);
+	
+		if ($response_code != 401) {
+	
+		$json_response = json_decode(wp_remote_retrieve_body($get_result), true);
+	
+		if (sizeof($json_response['addresses']) > 0) {
 
 			?>
-				<option value="<?php echo $json_response['addresses'][$i]['id']; ?>"><?php echo $json_response['addresses'][$i]['city']; ?></option>
+				<label for="companyAddressId"><?php echo $location_label; ?></label><br>
+		
+				<select name="companyAddressId" id="companyAddressId">
+		
+					<?php
+		
+					for ($i = 0; $i < count((array)$json_response['addresses']); $i++) {
+		
+					?>
+						<option value="<?php echo $json_response['addresses'][$i]['id']; ?>"><?php echo $json_response['addresses'][$i]['city']; ?></option>
+					<?php
+					}
+					?>
+				</select>
+				<br>
 			<?php
 			}
-			?>
-		</select>
-		<br>
-	<?php
-	}
+	
+	} 
 }
 
-function cinode_recruitment_multiplepipelines($multiplepipelines_label, $pipelines_string,$stageIds)
-{
+function cinode_recruitment_multiplepipelines($multiplepipelines_label, $pipelines_string, $stageIds)
+{ 
 	$pipelines_pairs = explode(',', $pipelines_string);
-	
-	$stage = explode(',',$stageIds);
+
+	$stage = explode(',', $stageIds);
 
 
 	foreach ($pipelines_pairs as $pair) {
 		$pipelines[] = explode(':', $pair);
 	}
-	
+
 
 	echo '<label for="SelectedPipeline">' . $multiplepipelines_label;
 	'</label>';
 	echo '<br><select id="selectedPipelineId">';
 	echo '<option value="">Select</option>';
-	
-	$i=0;
-	foreach($pipelines as $pair ){
-	  echo '<option value="'.$pair[0].'" stageId="'.$stage[$i].'">'.$pair[1].'</option>';
-	  $i++;
+
+	$i = 0;
+	foreach ($pipelines as $pair) {
+		echo '<option value="' . $pair[0] . '" stageId="' . $stage[$i] . '">' . $pair[1] . '</option>';
+		$i++;
 	}
 	echo "</select><br>";
 }
@@ -428,7 +441,7 @@ function cinode_recruitment_shortcode($atts = [])
 		'recruitmentsourceid' => 0,
 		'campaigncode' => 0,
 		'currencyid' => 1,
-		'multiplepipelines' =>'',
+		'multiplepipelines' => '',
 		'multiplepipeline_stageid' => 0,
 		'availableFrom' => 0,
 		'availablefrom_label' => '',
@@ -453,7 +466,7 @@ function cinode_recruitment_shortcode($atts = [])
 	), $atts, $shortcode = "cinode");
 
 	ob_start();
-?>
+	?>
 
 	<div class="wrap">
 
@@ -472,8 +485,8 @@ function cinode_recruitment_shortcode($atts = [])
 				</script>
 				<div>
 					<label><?php echo $args['firstname_label']; ?> *<br>
-						<span class=""><input type="text" id="first_name-input" name="first_name" value="" size="100%" class="text " aria-required="true" aria-invalid="false" placeholder=" ">
-							<span role="alert" id="first_name-required" class="alert-required" style="display: none"><?php echo $args['requiredfield_msg']; ?></span></span>
+						<span class=""><input type="text" id="first_name-input" name="first_name" value="" size="100%" class="text " aria-required="true" aria-invalid="false" placeholder=" "></span>
+						<span role="alert" id="first_name-required" class="alert-required" style="display: none"><?php echo $args['requiredfield_msg']; ?></span>
 					</label><br>
 					<label><?php echo $args['lastname_label']; ?> *<br>
 						<span class=""><input type="text" id="last_name-input" name="last_name" value="" size="100%" class=" text " aria-required="true" aria-invalid="false" placeholder=" ">
@@ -483,8 +496,8 @@ function cinode_recruitment_shortcode($atts = [])
 							<span role="alert" id="email-required" class="alert-required" style="display: none"><?php echo $args['requiredfield_msg']; ?></span></span>
 					</label><br>
 					<label><?php echo $args['phone_label']; ?><br>
-						<span class=""><input type="text" id="phone-input" placeholder=" " name="phone" value="" size="100%" class=" text" aria-required="false" aria-invalid="false">
-							<span role="alert" id="phone-required" class="alert-required" style="display: none"><?php echo $args['requiredfield_msg']; ?></span>
+						<span class=""><input type="text" id="phone-input" placeholder=" " name="phone" value="" size="100%" class=" text" aria-required="false" aria-invalid="false"></span>
+						<span role="alert" id="phone-required" class="alert-required" style="display: none"><?php echo $args['requiredfield_msg']; ?></span>
 						</span>
 					</label><br>
 					<label><?php echo $args['message_label']; ?> <br>
@@ -501,31 +514,24 @@ function cinode_recruitment_shortcode($atts = [])
 					}
 
 					$availableFrom_label = $args['availablefrom_label'];
-					if ($availableFrom_label!='')
-					{	
+					if ($availableFrom_label != '') {
 						cinode_recruitment_availableFrom($availableFrom_label);
 					}
-					
-					$multiplepipelines_label =$args['multiplepipelines_label'];
+
+					$multiplepipelines_label = $args['multiplepipelines_label'];
 					$pipelines_string = $args['multiplepipelines'];
 					$pipelines_stageId = $args['multiplepipeline_stageid'];
-					if(($pipelines_string)){
+					
+					if (($pipelines_string)) {
 						cinode_recruitment_multiplepipelines($multiplepipelines_label, $pipelines_string, $pipelines_stageId);
 					}
-					
+
 					?>
 					<br>
-					<div class="block recruit-attachment">
-						<div class="box">
-							<div class="btn-upload-single">
-								<label for="Attachments"><?php echo $args['attachment_label']; ?></label>
-								<input id="Attachments" name="Attachments" type="file">
-								<span class="field-validation-valid" data-valmsg-for="Attachments" data-valmsg-replace="true"></span>
-							</div>
-
-
-						</div>
-						<label id="file-name"></label>
+					<div for="file-upload" class="custom-file-upload ">
+							<?php echo $args['attachment_label']; ?>
+						<input id="file-upload" class="file-upload" type="file" />
+						<label class="file-name"></label>	
 					</div>
 					<br>
 					<input type="checkbox" name="terms" id="terms">
@@ -534,7 +540,7 @@ function cinode_recruitment_shortcode($atts = [])
 					<br>
 					<span id="terms-validate" style="display:none; color:red;"> <?php echo $args['privacy_error']; ?></span>
 					<input type="hidden" name="g-recaptcha-response" value="" id="g-recaptcha-response">
-					<?php do_action( 'c4wp_captcha_form_field' ); ?>
+					<?php do_action('c4wp_captcha_form_field'); ?>
 				</div>
 				<div class="row">
 					<div>

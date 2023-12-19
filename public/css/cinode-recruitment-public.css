@@ -47,27 +47,6 @@ textarea {
 .block, .header.header-icon {
     margin-bottom: 5px;
 }
-.btn.btn-upload-single {
-    background-color: initial;
-    display: flex;
-}
- .recruit-attachment .box label {
-    display: block;
-    text-align: center;
-    width: 100% !important;
-    background-color: rgb(255, 255, 255) !important;
-    
-} 
-.btn-upload-single label::before {
-    color: rgb(255, 255, 255);
-    content: "\00a0 ";
-    margin-right: 10px;
-    position: relative;
-    background-image: url(../../images/upload-solid.svg);
-    background-repeat: no-repeat;
-    padding: 0px 7px;
-    margin: 6px 5px;
-}
 .recruit-attachment .box label::before {
     color: rgb(34, 34, 34);
 }
@@ -75,15 +54,6 @@ textarea {
     display: none;
 }
 
-.btn-upload-single label {
-    border: solid 1px #aaaaaa;
-    border-radius: 0px;
-    color: #333;
-    line-height: 1.5;
-    margin: 0 0px;
-    max-width: 100%;
-    padding: 10px 0;
-}
 
 .spinner {
     margin: 10px auto 0;
@@ -126,3 +96,35 @@ textarea {
       transform: scale(1.0);
     }
   }
+
+.custom-file-upload {
+  border: 1px solid #ccc;
+  display: block;
+  padding: 12px;
+  /* cursor: pointer; */
+  text-align: center;
+  height: 3em;
+}
+.custom-file-upload::before {
+  color: rgb(255, 255, 255);
+  content: "\00a0 ";
+  margin-right: 10px;
+  position: relative;
+  background-image: url(../../images/upload-solid.svg);
+  background-repeat: no-repeat;
+  padding: 0px 7px;
+  margin: 6px 5px;
+}
+.custom-file-upload input[type=file]{
+  opacity: 0;
+  height: 3em;
+  top: -40px;
+  position: relative; }
+
+  .custom-file-upload .file-name {
+    position: relative;
+    text-align: left;
+    display: block;
+    line-height: 1.5;
+    margin-top: -45px;
+}

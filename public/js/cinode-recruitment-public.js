@@ -1,33 +1,61 @@
+var $ = jQuery.noConflict()
+var index = '';
+
 jQuery(document).ready(function ($) {
   
-  $("#Attachments").change(function () {
-    $("#file-name").text(this.files[0].name);
+  var isFormClickable = true;
+
+  $(".cinode-form").click(function () {
+    if (!isFormClickable) {
+      return; 
+    }
+
+    var clickedForm = $(this);
+    index = $(".cinode-form").index(clickedForm);
+
+    isFormClickable = false;
+
+    setTimeout(function () {
+      isFormClickable = true;
+    }, 1000); 
   });
 
-  $('.cinode-form').submit(function(event) {
+
+  $(".cinode-form #file-upload").change(function () {
+    var fileName = $(".cinode-form:eq("+index+") #file-upload").prop("files")[0].name;
+
+    var fileText = $(".cinode-form").eq(index).find(".file-name");
+    fileText.text(fileName);
+  
+    setTimeout(function () {
+      isFormClickable = true;
+    }, 1000); 
+  });
+
+  $('.cinode-form').submit(function (event) {
     event.preventDefault();
-    $(".spinner").show();
-    const email = $("#email-input");
-    const first_name = $("#first_name-input");
-    const last_name = $("#last_name-input");
-    const phone = $("#phone-input");
-    const description = $("textarea#description-input");
-    const linkedInUrl = $("#LinkedInUrl");
-    const companyAddressSelect = $("#companyAddressId option:selected");
-    const multiplePipeline = $("#selectedPipelineId option:selected").val();
-    const multipleStageId = $("#selectedPipelineId option:selected").attr(
+    var currentForm = $(this);
+
+    currentForm.find(".spinner").show();
+    const email = currentForm.find("#email-input");
+    const first_name = currentForm.find("#first_name-input");
+    const last_name = currentForm.find("#last_name-input");
+    const phone = currentForm.find("#phone-input");
+    const description = currentForm.find("textarea#description-input");
+    const linkedInUrl = currentForm.find("#LinkedInUrl");
+    const companyAddressSelect = currentForm.find("#companyAddressId option:selected");
+    const multiplePipeline = currentForm.find("#selectedPipelineId option:selected").val();
+    const multipleStageId = currentForm.find("#selectedPipelineId option:selected").attr(
       "stageId"
     );
-    const file = $("input#Attachments")[0].files[0];
-    const terms = $("#terms");
-    const availableFrom = $("#availableFrom");
-
-    
+    const file = currentForm.find("input.file-upload")[0].files[0];
+    const terms = currentForm.find("#terms");
+    const availableFrom = currentForm.find("#availableFrom");
 
     var formData = new FormData();
     if (terms[0].checked) {
-      $("#terms-validate").hide();
-      errorMessages = validateRequiredInputs();
+      currentForm.find("#terms-validate").hide();
+      var errorMessages = validateRequiredInputs();
       if (errorMessages.length === 0) {
         formData.append("files", file);
         formData.append("firstName", first_name.val());
@@ -64,8 +92,8 @@ jQuery(document).ready(function ($) {
         } else {
           formData.append("companyAddressId", "");
         }
-        
-        if (availableFrom.length > 0){
+
+        if (availableFrom.length > 0) {
           formData.append("availableFrom", availableFrom.val());
         }
 
@@ -73,84 +101,89 @@ jQuery(document).ready(function ($) {
           formData.append("recruitmentSourceId", recruitmentSourceId);
         }
         formData.append("campaignCode", campaignCode);
-        formData.append("currencyId", currencyId);
 
-        submitRequest(formData);
+
+        submitRequest(formData, currentForm);
       } else {
-        $(".spinner").hide();
+        currentForm.find(".spinner").hide();
       }
     } else {
-      $("#terms-validate").show();
-      $(".spinner").hide();
+      currentForm.find("#terms-validate").show();
+      currentForm.find(".spinner").hide();
     }
 
     function validateRequiredInputs() {
-      let errorMessage = [];
+      var errorMessage = [];
 
       if (email.val() === "") {
-        $("#email-required").show();
+        currentForm.find("#email-required").show();
         errorMessage.push("Aplicant email is missing");
       } else {
-        errorMessage.filter(
-          (message) => message !== "Aplicant address is missing"
+        errorMessage = errorMessage.filter(
+          (message) => message !== "Aplicant email is missing"
         );
-        $("#email-required").hide();
+        currentForm.find("#email-required").hide();
       }
       var emailReg = /^([\w-\.]+@([\w-]+\.)+[\w-]{2,4})?$/;
       if (!emailReg.test(email.val())) {
-        $("#email-required").show();
+        currentForm.find("#email-required").show();
       }
 
       if (first_name.val() === "") {
         errorMessage.push("First Name is missing");
-        $("#first_name-required").show();
+        currentForm.find("#first_name-required").show();
       } else {
-        errorMessage.filter((message) => message !== "First Name is missing");
-        $("#first_name-required").hide();
+        errorMessage = errorMessage.filter((message) => message !== "First Name is missing");
+        currentForm.find("#first_name-required").hide();
       }
       if (last_name.val() === "") {
         errorMessage.push("Last Name is missing");
-        $("#last_name-required").show();
+        currentForm.find("#last_name-required").show();
       } else {
-        errorMessage.filter((message) => message !== "Last Name is missing");
-        $("#last_name-required").hide();
+        errorMessage = errorMessage.filter((message) => message !== "Last Name is missing");
+        currentForm.find("#last_name-required").hide();
       }
 
       return errorMessage;
     }
+
+    function submitRequest(data, currentForm) {
+      currentForm.find(".spinner").show();
+      var url = cinode_url.site_url;
+      var path = url + "/wp-json/cinode/v2/cinode-recruitment";
+
+      $.ajax({
+        type: "POST",
+        url: path,
+        data: data,
+        contentType: false,
+        processData: false,
+        success: function (response) {
+          if (response.response.code == 201) {
+            currentForm.find(".spinner").hide();
+            currentForm.find("#successful-submit-msg").show(300);
+            setTimeout(function () {
+              currentForm.find("#successful-submit-msg").fadeOut("fast");
+            }, 5000);
+            currentForm.find("input:checkbox").removeAttr("checked");
+            currentForm.find(":input").not(":button, :submit, :reset, :hidden").val("");
+            currentForm.find("#file-name").text("");
+          } else if (response.response.code == 401) {
+            currentForm.find("#unsuccessful-submit-msg").show(300);
+            setTimeout(function () {
+              currentForm.find("#unsuccessful-submit-msg").fadeOut("fast");
+            }, 6000);
+            currentForm.find(".spinner").hide();
+          }else{
+            currentForm.find("#unsuccessful-submit-msg").show(300);
+            setTimeout(function () {
+              currentForm.find("#unsuccessful-submit-msg").fadeOut("fast");
+            }, 6000);
+            currentForm.find(".spinner").hide();
+          }
+        },
+      });
+    }
   });
 
-  function submitRequest(data) {
-    $(".spinner").show();
-    var url = cinode_url.site_url;
-    var path = url + "/wp-json/cinode/v2/cinode-recruitment";
-
-    $.ajax({
-      type: "POST",
-      url: path,
-      data: data,
-      contentType: false,
-      processData: false,
-      success: function (response) {
-        if (response.response.code == 201) {
-          $(".spinner").hide();
-          $("#successful-submit-msg").show(300);
-          setTimeout(function () {
-            $("#successful-submit-msg").fadeOut("fast");
-          }, 5000);
-          $("input:checkbox").removeAttr("checked");
-          $(":input", "#cinode-form")
-            .not(":button, :submit, :reset, :hidden")
-            .val("");
-          $("#file-name").text("");
-        } else {
-          $("#unsuccessful-submit-msg").show(300);
-          setTimeout(function () {
-            $("#unsuccessful-submit-msg").fadeOut("fast");
-          }, 6000);
-          $(".spinner").hide();
-        }
-      },
-    });
-  }
 });
