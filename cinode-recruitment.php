@@ -160,7 +160,7 @@ function cinode_recruitment_route()
 						'description' => 'recruitmentSourceId',
 					),
 					'campaignCode' => array(
-						'type' => 'int',
+						'type' => 'string',
 						'description' => 'campaignCode',
 					),
 					'availableFrom' => array(
@@ -200,6 +200,8 @@ function cinodeRecruitmentPost($postData)
 		'companyAddressId' => $postData['companyAddressId'],
 		'recruitmentSourceId' => $postData['recruitmentSourceId'],
 		'availableFromDate' => $postData['availableFrom'],
+		'campaignCode' => $postData['campaignCode'],
+
 	);
 
 
@@ -439,7 +441,7 @@ function cinode_recruitment_shortcode($atts = [])
 		'teamid' => 0,
 		'companyaddressid' => 0,
 		'recruitmentsourceid' => 0,
-		'campaigncode' => 0,
+		'campaigncode' => '',
 		'currencyid' => 1,
 		'multiplepipelines' => '',
 		'multiplepipeline_stageid' => 0,
