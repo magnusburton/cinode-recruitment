@@ -16,7 +16,7 @@
  * Plugin Name:       Cinode recruitment plugin
  * Plugin URI:        cinode.com
  * Description:       This is Cinode Candidate Recruitment plugin. 
- * Version:           1.5
+ * Version:           1.5.1
  * Author:            Cinode
  * Author URI:        cinode.com
  * License:           GPL-2.0+
@@ -33,7 +33,7 @@ if (!defined('WPINC')) {
 /**
  * Currently plugin version.
  */
-define('CINODE_RECRUITMENT_VERSION', '1.5');
+define('CINODE_RECRUITMENT_VERSION', '1.5.1');
 
 /**
  * The code that runs during plugin activation.
