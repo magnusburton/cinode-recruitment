@@ -74,6 +74,14 @@ class Cinode_Recruitment_Admin {
 
 		wp_enqueue_script( $this->plugin_name, plugin_dir_url( __FILE__ ) . 'js/cinode-recruitment-admin.js', array( 'jquery' ), $this->version, false );
 
+		wp_localize_script( $this->plugin_name, 'cinodeRecruitmentAdmin', array(
+			'i18n' => array(
+				'selectAStage'         => __( 'Select a stage', 'cinode-recruitment' ),
+				'selectAPipelineFirst' => __( 'Select a pipeline first', 'cinode-recruitment' ),
+				'copied'               => __( 'Copied!', 'cinode-recruitment' ),
+			),
+		) );
+
 	}
 
 }
@@ -121,6 +129,11 @@ function cinode_recruitment_sanitize_options($input)
 	$raw_selection                                     = $input['option_subcontractor_group_selection'] ?? 'single';
 	$input['option_subcontractor_group_selection']     = in_array($raw_selection, $allowed_selections, true) ? $raw_selection : 'single';
 	$input['option_subcontractor_default_language_id'] = intval($input['option_subcontractor_default_language_id'] ?? 1);
+	$input['option_default_candidate_pipeline_id']     = intval($input['option_default_candidate_pipeline_id'] ?? 0);
+	$input['option_default_candidate_pipeline_stage_id'] = intval($input['option_default_candidate_pipeline_stage_id'] ?? 0);
+	if ($input['option_default_candidate_pipeline_id'] <= 0) {
+		$input['option_default_candidate_pipeline_stage_id'] = 0;
+	}
 	$input['option_cv_required']                       = isset($input['option_cv_required']) ? 1 : 0;
 	$input['option_parse_cv']                          = isset($input['option_parse_cv']) ? 1 : 0;
 	$raw_auto_ids = $input['option_auto_subcontractor_group_ids'] ?? '';
@@ -215,6 +228,44 @@ function cinode_recruitment_admin_fetch_languages()
 	return $languages;
 }
 
+function cinode_recruitment_admin_fetch_candidate_pipelines()
+{
+	$opts      = get_option('cinode_recruitment_options', array());
+	$companyId = $opts['option_companyId'] ?? '';
+	$token     = $opts['option_apiKey'] ?? '';
+
+	if (empty($companyId) || empty($token)) {
+		return array();
+	}
+
+	$cache_key = 'cinode_admin_candidate_pipelines_' . md5((string) $companyId . $token);
+	$cached    = get_transient($cache_key);
+	if ($cached !== false) {
+		return $cached;
+	}
+
+	$url  = 'https://api.cinode.app/v0.1/companies/' . intval($companyId) . '/candidates/pipelines';
+	$args = array(
+		'headers' => array(
+			'Accept'        => 'application/json',
+			'Authorization' => 'Bearer ' . $token,
+		),
+		'timeout' => 10,
+	);
+
+	$response = wp_remote_get($url, $args);
+	if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+		return array();
+	}
+
+	$pipelines = json_decode(wp_remote_retrieve_body($response), true);
+	$pipelines = is_array($pipelines) ? $pipelines : array();
+
+	set_transient($cache_key, $pipelines, 5 * MINUTE_IN_SECONDS);
+
+	return $pipelines;
+}
+
 function cinode_recruitment_settings_page()
 {
 	$cinode_opts = get_option('cinode_recruitment_options', array());
@@ -223,9 +274,12 @@ function cinode_recruitment_settings_page()
 
 	$all_groups         = $api_valid ? cinode_recruitment_admin_fetch_groups() : array();
 	$all_languages      = $api_valid ? cinode_recruitment_admin_fetch_languages() : array();
+	$all_candidate_pipelines = $api_valid ? cinode_recruitment_admin_fetch_candidate_pipelines() : array();
 	$selected_group_ids = array_filter(array_map('intval', explode(',', $cinode_opts['option_subcontractor_group_ids'] ?? '')));
 	$selected_auto_ids  = array_filter(array_map('intval', explode(',', $cinode_opts['option_auto_subcontractor_group_ids'] ?? '')));
 	$selected_lang_id   = intval($cinode_opts['option_subcontractor_default_language_id'] ?? 1);
+	$selected_candidate_pipeline_id = intval($cinode_opts['option_default_candidate_pipeline_id'] ?? 0);
+	$selected_candidate_stage_id    = intval($cinode_opts['option_default_candidate_pipeline_stage_id'] ?? 0);
 
 	$mail_opts = get_option('cinode_recruitment_options_sendmail', array());
 	if (empty($mail_opts)) {
@@ -240,44 +294,48 @@ function cinode_recruitment_settings_page()
 	<div class="cinode-page-header">
 		<h1 class="cinode-page-title">
 			<span class="dashicons dashicons-groups" aria-hidden="true"></span>
-			Cinode Recruitment
+			<?php esc_html_e( 'Cinode Recruitment', 'cinode-recruitment' ); ?>
 		</h1>
 		<?php if ($api_valid) : ?>
 			<span class="cinode-badge cinode-badge--active">
-				<span class="dashicons dashicons-yes-alt" aria-hidden="true"></span> Connected
+				<span class="dashicons dashicons-yes-alt" aria-hidden="true"></span> <?php esc_html_e( 'Connected', 'cinode-recruitment' ); ?>
 			</span>
 		<?php else : ?>
 			<span class="cinode-badge cinode-badge--inactive">
-				<span class="dashicons dashicons-warning" aria-hidden="true"></span> Not connected — check your API credentials
+				<span class="dashicons dashicons-warning" aria-hidden="true"></span> <?php esc_html_e( 'Not connected — check your API credentials', 'cinode-recruitment' ); ?>
 			</span>
 		<?php endif; ?>
 	</div>
 
-	<nav class="nav-tab-wrapper cinode-nav-tabs" aria-label="Plugin settings sections">
+	<nav class="nav-tab-wrapper cinode-nav-tabs" aria-label="<?php esc_attr_e( 'Plugin settings sections', 'cinode-recruitment' ); ?>">
 		<a href="#tab-api" class="nav-tab nav-tab-active" data-tab="tab-api">
 			<span class="dashicons dashicons-admin-network" aria-hidden="true"></span>
-			<span class="cinode-tab-label">API &amp; Activation</span>
+			<span class="cinode-tab-label"><?php esc_html_e( 'API & Activation', 'cinode-recruitment' ); ?></span>
 		</a>
 		<a href="#tab-subcontractor" class="nav-tab" data-tab="tab-subcontractor">
 			<span class="dashicons dashicons-businessperson" aria-hidden="true"></span>
-			<span class="cinode-tab-label">Subcontractor &amp; CV</span>
+			<span class="cinode-tab-label"><?php esc_html_e( 'CV & Subcontractors', 'cinode-recruitment' ); ?></span>
+		</a>
+		<a href="#tab-candidate" class="nav-tab" data-tab="tab-candidate">
+			<span class="dashicons dashicons-id" aria-hidden="true"></span>
+			<span class="cinode-tab-label"><?php esc_html_e( 'Candidate Defaults', 'cinode-recruitment' ); ?></span>
 		</a>
 		<a href="#tab-email" class="nav-tab" data-tab="tab-email">
 			<span class="dashicons dashicons-email-alt" aria-hidden="true"></span>
-			<span class="cinode-tab-label">Email Confirmation</span>
+			<span class="cinode-tab-label"><?php esc_html_e( 'Email Confirmation', 'cinode-recruitment' ); ?></span>
 		</a>
 		<a href="#tab-shortcode" class="nav-tab" data-tab="tab-shortcode">
 			<span class="dashicons dashicons-editor-code" aria-hidden="true"></span>
-			<span class="cinode-tab-label">Shortcode Reference</span>
+			<span class="cinode-tab-label"><?php esc_html_e( 'Shortcode Reference', 'cinode-recruitment' ); ?></span>
 		</a>
 		<a href="#tab-spam" class="nav-tab" data-tab="tab-spam">
 			<span class="dashicons dashicons-shield" aria-hidden="true"></span>
-			<span class="cinode-tab-label">Spam Protection</span>
+			<span class="cinode-tab-label"><?php esc_html_e( 'Spam Protection', 'cinode-recruitment' ); ?></span>
 		</a>
 	</nav>
 
 	<!-- ============================================================
-	     MAIN SETTINGS FORM — API credentials + Subcontractor & CV
+	     MAIN SETTINGS FORM — API credentials + CV & Subcontractors
 	     Both tab sections share this form so saving from either tab
 	     preserves all settings in cinode_recruitment_options.
 	     ============================================================ -->
@@ -290,15 +348,15 @@ function cinode_recruitment_settings_page()
 				<div class="postbox-header">
 					<h2 class="hndle">
 						<span class="dashicons dashicons-admin-network" aria-hidden="true"></span>
-						API Credentials
+						<?php esc_html_e( 'API Credentials', 'cinode-recruitment' ); ?>
 					</h2>
 				</div>
 				<div class="inside">
-					<p>Enter your Cinode <strong>Company ID</strong> and <strong>API Token</strong> to activate the plugin. You can find these in your Cinode account settings.</p>
+					<p><?php printf( __( 'Enter your Cinode %1$sCompany ID%2$s and %1$sAPI Token%2$s to activate the plugin. You can find these in your Cinode account settings.', 'cinode-recruitment' ), '<strong>', '</strong>' ); ?></p>
 					<table class="form-table" role="presentation">
 						<tr>
 							<th scope="row">
-								<label for="cinode_company_id">Company ID</label>
+								<label for="cinode_company_id"><?php esc_html_e( 'Company ID', 'cinode-recruitment' ); ?></label>
 							</th>
 							<td>
 								<input
@@ -313,7 +371,7 @@ function cinode_recruitment_settings_page()
 						</tr>
 						<tr>
 							<th scope="row">
-								<label for="cinode_api_key">API Token</label>
+								<label for="cinode_api_key"><?php esc_html_e( 'API Token', 'cinode-recruitment' ); ?></label>
 							</th>
 							<td>
 								<input
@@ -323,32 +381,32 @@ function cinode_recruitment_settings_page()
 									value="<?php echo esc_attr($apiFieldVal); ?>"
 									class="regular-text"
 									autocomplete="new-password"
-									placeholder="<?php echo $api_valid ? 'Token saved \u2014 enter a new value to replace it' : 'Paste your API token here'; ?>"
+									placeholder="<?php echo esc_attr( $api_valid ? __( 'Token saved — enter a new value to replace it', 'cinode-recruitment' ) : __( 'Paste your API token here', 'cinode-recruitment' ) ); ?>"
 								/>
-								<p class="description"><?php echo $api_valid ? 'Your token is saved. Leave the field showing <code>***</code> to keep it unchanged.' : 'Paste the token from your Cinode account.'; ?></p>
+								<p class="description"><?php echo $api_valid ? wp_kses( __( 'Your token is saved. Leave the field showing <code>***</code> to keep it unchanged.', 'cinode-recruitment' ), array( 'code' => array() ) ) : esc_html__( 'Paste the token from your Cinode account.', 'cinode-recruitment' ); ?></p>
 							</td>
 						</tr>
 					</table>
-					<?php submit_button('Save API Settings', 'primary large', 'submit', true); ?>
+					<?php submit_button( __( 'Save API Settings', 'cinode-recruitment' ), 'primary large', 'submit', true); ?>
 				</div>
 			</div>
 		</div><!-- #tab-api -->
 
-		<!-- TAB: Subcontractor & CV -->
+		<!-- TAB: CV & Subcontractors -->
 		<div id="tab-subcontractor" class="cinode-tab-content" style="display:none;">
 
 			<div class="postbox cinode-card">
 				<div class="postbox-header">
 					<h2 class="hndle">
 						<span class="dashicons dashicons-groups" aria-hidden="true"></span>
-						Subcontractor Groups
+						<?php esc_html_e( 'Subcontractor Groups', 'cinode-recruitment' ); ?>
 					</h2>
 				</div>
 				<div class="inside">
-					<p>Control how the public form presents subcontractor group selection to applicants.</p>
+					<p><?php esc_html_e( 'Control how the public form presents subcontractor group selection to applicants.', 'cinode-recruitment' ); ?></p>
 					<table class="form-table" role="presentation">
 						<tr>
-							<th scope="row">Show group selector</th>
+							<th scope="row"><?php esc_html_e( 'Show group selector', 'cinode-recruitment' ); ?></th>
 							<td>
 								<fieldset>
 									<label for="cinode_show_groups">
@@ -366,7 +424,7 @@ function cinode_recruitment_settings_page()
 						</tr>
 						<tr>
 							<th scope="row">
-								<label for="cinode_group_ids">Groups to display</label>
+								<label for="cinode_group_ids"><?php esc_html_e( 'Groups to display', 'cinode-recruitment' ); ?></label>
 							</th>
 							<td>
 								<?php if (!empty($all_groups)) : ?>
@@ -384,7 +442,7 @@ function cinode_recruitment_settings_page()
 											<option value="<?php echo $grp_id; ?>" <?php selected(in_array($grp_id, $selected_group_ids, true)); ?>><?php echo $grp_name; ?></option>
 										<?php endforeach; ?>
 									</select>
-									<p class="description">Hold <kbd>Ctrl</kbd> / <kbd>Cmd</kbd> to select multiple groups. Leave all unselected to show every group.</p>
+									<p class="description"><?php printf( esc_html__( 'Hold %1$sCtrl%2$s / %1$sCmd%2$s to select multiple groups. Leave all unselected to show every group.', 'cinode-recruitment' ), '<kbd>', '</kbd>' ); ?></p>
 								<?php else : ?>
 									<input
 										type="text"
@@ -394,24 +452,24 @@ function cinode_recruitment_settings_page()
 										class="regular-text"
 										placeholder="e.g. 12,34,56"
 									/>
-									<p class="description">Comma-separated group IDs. Leave empty to show all groups.</p>
+									<p class="description"><?php esc_html_e( 'Comma-separated group IDs. Leave empty to show all groups.', 'cinode-recruitment' ); ?></p>
 								<?php endif; ?>
 							</td>
 						</tr>
 						<tr>
 							<th scope="row">
-								<label for="cinode_group_selection">Selection mode</label>
+								<label for="cinode_group_selection"><?php esc_html_e( 'Selection mode', 'cinode-recruitment' ); ?></label>
 							</th>
 							<td>
 								<select id="cinode_group_selection" name="cinode_recruitment_options[option_subcontractor_group_selection]">
-									<option value="single" <?php selected('single', $cinode_opts['option_subcontractor_group_selection'] ?? 'single'); ?>>Single &mdash; dropdown</option>
-									<option value="multiple" <?php selected('multiple', $cinode_opts['option_subcontractor_group_selection'] ?? 'single'); ?>>Multiple &mdash; checkboxes</option>
+									<option value="single" <?php selected('single', $cinode_opts['option_subcontractor_group_selection'] ?? 'single'); ?>><?php esc_html_e( 'Single — dropdown', 'cinode-recruitment' ); ?></option>
+									<option value="multiple" <?php selected('multiple', $cinode_opts['option_subcontractor_group_selection'] ?? 'single'); ?>><?php esc_html_e( 'Multiple — checkboxes', 'cinode-recruitment' ); ?></option>
 								</select>
-								<p class="description">How the applicant selects their group(s) in the form.</p>
+								<p class="description"><?php esc_html_e( 'How the applicant selects their group(s) in the form.', 'cinode-recruitment' ); ?></p>
 							</td>
 						</tr>
 						<tr>
-							<th scope="row">Auto-join groups</th>
+							<th scope="row"><?php esc_html_e( 'Auto-join groups', 'cinode-recruitment' ); ?></th>
 							<td>
 								<?php if (!empty($all_groups)) : ?>
 									<fieldset>
@@ -430,17 +488,17 @@ function cinode_recruitment_settings_page()
 											</label><br>
 										<?php endforeach; ?>
 									</fieldset>
-									<p class="description">Every new subcontractor is silently added to the ticked groups — no selector shown to the applicant. Can be overridden per shortcode: <code>auto_subcontractor_group_ids="12,34"</code>.</p>
-								<?php else : ?>
-									<input
-										type="text"
-										id="cinode_auto_groups"
-										name="cinode_recruitment_options[option_auto_subcontractor_group_ids]"
-										value="<?php echo esc_attr($cinode_opts['option_auto_subcontractor_group_ids'] ?? ''); ?>"
-										class="regular-text"
-										placeholder="e.g. 12,34"
-									/>
-									<p class="description">Comma-separated group IDs every new subcontractor is automatically added to — no selector is shown to the applicant. Can be overridden per shortcode: <code>auto_subcontractor_group_ids="12,34"</code>.</p>
+								<p class="description"><?php echo wp_kses( __( 'Every new subcontractor is silently added to the ticked groups — no selector shown to the applicant. Can be overridden per shortcode: <code>auto_subcontractor_group_ids="12,34"</code>.', 'cinode-recruitment' ), array( 'code' => array() ) ); ?></p>
+							<?php else : ?>
+								<input
+									type="text"
+									id="cinode_auto_groups"
+									name="cinode_recruitment_options[option_auto_subcontractor_group_ids]"
+									value="<?php echo esc_attr($cinode_opts['option_auto_subcontractor_group_ids'] ?? ''); ?>"
+									class="regular-text"
+									placeholder="e.g. 12,34"
+								/>
+								<p class="description"><?php echo wp_kses( __( 'Comma-separated group IDs every new subcontractor is automatically added to — no selector is shown to the applicant. Can be overridden per shortcode: <code>auto_subcontractor_group_ids="12,34"</code>.', 'cinode-recruitment' ), array( 'code' => array() ) ); ?></p>
 								<?php endif; ?>
 							</td>
 						</tr>
@@ -452,13 +510,13 @@ function cinode_recruitment_settings_page()
 				<div class="postbox-header">
 					<h2 class="hndle">
 						<span class="dashicons dashicons-media-document" aria-hidden="true"></span>
-						CV Upload
+						<?php esc_html_e( 'CV Upload', 'cinode-recruitment' ); ?>
 					</h2>
 				</div>
 				<div class="inside">
 					<table class="form-table" role="presentation">
 						<tr>
-							<th scope="row">CV required by default</th>
+							<th scope="row"><?php esc_html_e( 'CV required by default', 'cinode-recruitment' ); ?></th>
 							<td>
 								<fieldset>
 									<label for="cinode_cv_required">
@@ -469,14 +527,14 @@ function cinode_recruitment_settings_page()
 											value="1"
 											<?php checked(1, $cinode_opts['option_cv_required'] ?? 0); ?>
 										/>
-										Make the file upload field mandatory
-									</label>
-									<p class="description">Override per shortcode: <code>cv_required="1"</code> or <code>cv_required="0"</code>.</p>
+									<?php esc_html_e( 'Make the file upload field mandatory', 'cinode-recruitment' ); ?>
+								</label>
+								<p class="description"><?php echo wp_kses( __( 'Override per shortcode: <code>cv_required="1"</code> or <code>cv_required="0"</code>.', 'cinode-recruitment' ), array( 'code' => array() ) ); ?></p>
 								</fieldset>
 							</td>
 						</tr>
 						<tr>
-							<th scope="row">Parse CV on upload</th>
+							<th scope="row"><?php esc_html_e( 'Parse CV on upload', 'cinode-recruitment' ); ?></th>
 							<td>
 								<fieldset>
 									<label for="cinode_parse_cv">
@@ -487,9 +545,9 @@ function cinode_recruitment_settings_page()
 											value="1"
 											<?php checked(1, $cinode_opts['option_parse_cv'] ?? 0); ?>
 										/>
-										Import the uploaded CV into the subcontractor's Cinode profile (asynchronous)
-									</label>
-									<p class="description">Applies to subcontractors only. Override per shortcode: <code>parse_cv="1"</code> or <code>parse_cv="0"</code>.</p>
+									<?php esc_html_e( 'Import the uploaded CV into the applicant\'s Cinode user profile (asynchronous)', 'cinode-recruitment' ); ?>
+								</label>
+								<p class="description"><?php echo wp_kses( __( 'Applies to candidate and subcontractor forms when Cinode returns a company user ID. Override per shortcode: <code>parse_cv="1"</code> or <code>parse_cv="0"</code>.', 'cinode-recruitment' ), array( 'code' => array() ) ); ?></p>
 								</fieldset>
 							</td>
 						</tr>
@@ -501,14 +559,14 @@ function cinode_recruitment_settings_page()
 				<div class="postbox-header">
 					<h2 class="hndle">
 						<span class="dashicons dashicons-translation" aria-hidden="true"></span>
-						Localisation
+						<?php esc_html_e( 'Localisation', 'cinode-recruitment' ); ?>
 					</h2>
 				</div>
 				<div class="inside">
 					<table class="form-table" role="presentation">
 						<tr>
 							<th scope="row">
-								<label for="cinode_lang_id">Default language</label>
+								<label for="cinode_lang_id"><?php esc_html_e( 'Default language', 'cinode-recruitment' ); ?></label>
 							</th>
 							<td>
 								<?php if (!empty($all_languages)) : ?>
@@ -530,15 +588,103 @@ function cinode_recruitment_settings_page()
 										class="small-text"
 									/>
 								<?php endif; ?>
-								<p class="description">Language used when creating a subcontractor account in Cinode. Required by the API.</p>
+								<p class="description"><?php esc_html_e( 'Language used when creating a subcontractor account in Cinode. Required by the API.', 'cinode-recruitment' ); ?></p>
 							</td>
 						</tr>
 					</table>
 				</div>
 			</div>
 
-			<?php submit_button('Save Subcontractor Settings', 'primary large', 'submit', true); ?>
+			<?php submit_button( __( 'Save CV & Subcontractor Settings', 'cinode-recruitment' ), 'primary large', 'submit', true); ?>
 		</div><!-- #tab-subcontractor -->
+
+		<!-- TAB: Candidate Defaults -->
+		<div id="tab-candidate" class="cinode-tab-content" style="display:none;">
+			<div class="postbox cinode-card">
+				<div class="postbox-header">
+					<h2 class="hndle">
+						<span class="dashicons dashicons-id" aria-hidden="true"></span>
+						<?php esc_html_e( 'Candidate Pipeline Defaults', 'cinode-recruitment' ); ?>
+					</h2>
+				</div>
+				<div class="inside">
+					<p><?php esc_html_e( 'Choose the candidate pipeline and stage used when a candidate shortcode does not include pipeline settings.', 'cinode-recruitment' ); ?></p>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row">
+								<label for="cinode_default_candidate_pipeline_id"><?php esc_html_e( 'Default pipeline', 'cinode-recruitment' ); ?></label>
+							</th>
+							<td>
+								<?php if (!empty($all_candidate_pipelines)) : ?>
+									<select id="cinode_default_candidate_pipeline_id" name="cinode_recruitment_options[option_default_candidate_pipeline_id]">
+										<option value="0" <?php selected(0, $selected_candidate_pipeline_id); ?>><?php esc_html_e( 'No default pipeline', 'cinode-recruitment' ); ?></option>
+										<?php foreach ($all_candidate_pipelines as $pipeline) :
+											$pipeline_id    = intval($pipeline['id'] ?? 0);
+											$pipeline_title = esc_html($pipeline['title'] ?? 'Pipeline ' . $pipeline_id);
+											if ($pipeline_id <= 0) {
+												continue;
+											}
+										?>
+											<option value="<?php echo $pipeline_id; ?>" <?php selected($selected_candidate_pipeline_id, $pipeline_id); ?>><?php echo $pipeline_title; ?></option>
+										<?php endforeach; ?>
+									</select>
+								<?php else : ?>
+									<input
+										type="number"
+										id="cinode_default_candidate_pipeline_id"
+										min="0"
+										name="cinode_recruitment_options[option_default_candidate_pipeline_id]"
+										value="<?php echo esc_attr($selected_candidate_pipeline_id); ?>"
+										class="small-text"
+									/>
+								<?php endif; ?>
+								<p class="description"><?php echo wp_kses( __( 'Omit <code>pipelineId</code>, <code>pipelineStageId</code>, <code>multiplepipelines</code>, and <code>multiplepipeline_stageid</code> in a candidate shortcode to use this default.', 'cinode-recruitment' ), array( 'code' => array() ) ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row">
+								<label for="cinode_default_candidate_pipeline_stage_id"><?php esc_html_e( 'Default stage', 'cinode-recruitment' ); ?></label>
+							</th>
+							<td>
+								<?php if (!empty($all_candidate_pipelines)) : ?>
+									<select id="cinode_default_candidate_pipeline_stage_id" name="cinode_recruitment_options[option_default_candidate_pipeline_stage_id]">
+										<option value="0" data-pipeline-id="0" <?php selected(0, $selected_candidate_stage_id); ?>><?php esc_html_e( 'Select a pipeline first', 'cinode-recruitment' ); ?></option>
+										<?php foreach ($all_candidate_pipelines as $pipeline) :
+											$pipeline_id    = intval($pipeline['id'] ?? 0);
+											$pipeline_title = esc_html($pipeline['title'] ?? 'Pipeline ' . $pipeline_id);
+											$stages         = is_array($pipeline['stages'] ?? null) ? $pipeline['stages'] : array();
+											if ($pipeline_id <= 0) {
+												continue;
+											}
+											foreach ($stages as $stage) :
+												$stage_id    = intval($stage['id'] ?? 0);
+												$stage_title = esc_html($stage['title'] ?? 'Stage ' . $stage_id);
+												if ($stage_id <= 0) {
+													continue;
+												}
+											?>
+												<option value="<?php echo $stage_id; ?>" data-pipeline-id="<?php echo $pipeline_id; ?>" <?php selected($selected_candidate_stage_id, $stage_id); ?>><?php echo $pipeline_title; ?> &mdash; <?php echo $stage_title; ?></option>
+											<?php endforeach;
+										endforeach; ?>
+									</select>
+								<?php else : ?>
+									<input
+										type="number"
+										id="cinode_default_candidate_pipeline_stage_id"
+										min="0"
+										name="cinode_recruitment_options[option_default_candidate_pipeline_stage_id]"
+										value="<?php echo esc_attr($selected_candidate_stage_id); ?>"
+										class="small-text"
+									/>
+								<?php endif; ?>
+								<p class="description"><?php esc_html_e( 'Select both a pipeline and stage. The default is ignored unless both IDs are saved.', 'cinode-recruitment' ); ?></p>
+							</td>
+						</tr>
+					</table>
+					<?php submit_button( __( 'Save Candidate Defaults', 'cinode-recruitment' ), 'primary large', 'submit', true); ?>
+				</div>
+			</div>
+		</div><!-- #tab-candidate -->
 
 	</form><!-- #cinode-main-settings-form -->
 
@@ -554,15 +700,15 @@ function cinode_recruitment_settings_page()
 				<div class="postbox-header">
 					<h2 class="hndle">
 						<span class="dashicons dashicons-email-alt" aria-hidden="true"></span>
-						Confirmation Email
+						<?php esc_html_e( 'Confirmation Email', 'cinode-recruitment' ); ?>
 					</h2>
 				</div>
 				<div class="inside">
-					<p>This email is sent automatically to the applicant after a successful form submission.</p>
+					<p><?php esc_html_e( 'This email is sent automatically to the applicant after a successful form submission.', 'cinode-recruitment' ); ?></p>
 					<table class="form-table" role="presentation">
 						<tr>
 							<th scope="row">
-								<label for="cinode_mail_subject">Subject</label>
+								<label for="cinode_mail_subject"><?php esc_html_e( 'Subject', 'cinode-recruitment' ); ?></label>
 							</th>
 							<td>
 								<input
@@ -576,7 +722,7 @@ function cinode_recruitment_settings_page()
 						</tr>
 						<tr>
 							<th scope="row">
-								<label for="cinode_mail_message">Message body</label>
+								<label for="cinode_mail_message"><?php esc_html_e( 'Message body', 'cinode-recruitment' ); ?></label>
 							</th>
 							<td>
 								<textarea
@@ -585,15 +731,15 @@ function cinode_recruitment_settings_page()
 									class="large-text"
 									rows="6"
 								><?php echo esc_textarea($mail_opts['option_message']); ?></textarea>
-								<p class="description">Plain-text message sent to the candidate.</p>
+								<p class="description"><?php esc_html_e( 'Plain-text message sent to the candidate.', 'cinode-recruitment' ); ?></p>
 							</td>
 						</tr>
 					</table>
 					<p class="cinode-notice cinode-notice--info">
 						<span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
-						To use a custom SMTP server, install the <a href="https://wordpress.org/plugins/wp-mail-smtp/" target="_blank" rel="noopener noreferrer"><strong>WP Mail SMTP</strong></a> plugin.
+						<?php printf( wp_kses( __( 'To use a custom SMTP server, install the %s plugin.', 'cinode-recruitment' ), array( 'a' => array( 'href' => array(), 'target' => array(), 'rel' => array() ), 'strong' => array() ) ), '<a href="https://wordpress.org/plugins/wp-mail-smtp/" target="_blank" rel="noopener noreferrer"><strong>WP Mail SMTP</strong></a>' ); ?>
 					</p>
-					<?php submit_button('Save Email Settings', 'primary large', 'submit', true); ?>
+					<?php submit_button( __( 'Save Email Settings', 'cinode-recruitment' ), 'primary large', 'submit', true); ?>
 				</div>
 			</div>
 		</div><!-- #tab-email -->
@@ -605,14 +751,14 @@ function cinode_recruitment_settings_page()
 
 		<div class="postbox cinode-card">
 			<div class="postbox-header">
-				<h2 class="hndle"><span class="dashicons dashicons-editor-code" aria-hidden="true"></span> Quick Start</h2>
+				<h2 class="hndle"><span class="dashicons dashicons-editor-code" aria-hidden="true"></span> <?php esc_html_e( 'Quick Start', 'cinode-recruitment' ); ?></h2>
 			</div>
 			<div class="inside">
-				<p>Paste the shortcode into any WordPress page or post. The simplest version:</p>
+				<p><?php esc_html_e( 'Paste the shortcode into any WordPress page or post. The simplest version:', 'cinode-recruitment' ); ?></p>
 				<div class="cinode-code-block">
 					<code id="sc-basic">[cinode]</code>
-					<button type="button" class="button cinode-copy-btn" data-clipboard-target="#sc-basic" aria-label="Copy shortcode">
-						<span class="dashicons dashicons-clipboard" aria-hidden="true"></span> Copy
+					<button type="button" class="button cinode-copy-btn" data-clipboard-target="#sc-basic" aria-label="<?php esc_attr_e( 'Copy shortcode', 'cinode-recruitment' ); ?>">
+						<span class="dashicons dashicons-clipboard" aria-hidden="true"></span> <?php esc_html_e( 'Copy', 'cinode-recruitment' ); ?>
 					</button>
 				</div>
 			</div>
@@ -620,10 +766,10 @@ function cinode_recruitment_settings_page()
 
 		<div class="postbox cinode-card">
 			<div class="postbox-header">
-				<h2 class="hndle"><span class="dashicons dashicons-filter" aria-hidden="true"></span> Core Parameters</h2>
+				<h2 class="hndle"><span class="dashicons dashicons-filter" aria-hidden="true"></span> <?php esc_html_e( 'Core Parameters', 'cinode-recruitment' ); ?></h2>
 			</div>
 			<div class="inside">
-				<p>All parameters are optional. If you set <code>pipelineId</code>, you must also set <code>pipelineStageId</code>.</p>
+				<p>All parameters are optional. If you set <code>pipelineId</code>, you must also set <code>pipelineStageId</code>. Omit both to use the configured candidate defaults. Setting either value, including <code>0</code>, makes the shortcode pipeline settings take precedence.</p>
 				<table class="widefat striped cinode-ref-table">
 					<thead>
 						<tr>
@@ -635,8 +781,8 @@ function cinode_recruitment_settings_page()
 					<tbody>
 						<tr><td><code>recipient_type</code></td><td><code>"candidate"</code></td><td>Who the form creates: <code>"candidate"</code> or <code>"subcontractor"</code>.</td></tr>
 						<tr><td><code>formtitle</code></td><td><code>""</code></td><td>Heading displayed above the form. Leave empty to show no heading.</td></tr>
-						<tr><td><code>pipelineId</code></td><td><code>0</code></td><td>Cinode pipeline ID to assign the candidate to.</td></tr>
-						<tr><td><code>pipelineStageId</code></td><td><code>0</code></td><td>Stage within the pipeline. <strong>Required</strong> when <code>pipelineId</code> is set.</td></tr>
+						<tr><td><code>pipelineId</code></td><td>Candidate default or <code>0</code></td><td>Cinode pipeline ID to assign the candidate to. Omit with <code>pipelineStageId</code> to use the admin default.</td></tr>
+						<tr><td><code>pipelineStageId</code></td><td>Candidate default or <code>0</code></td><td>Stage within the pipeline. <strong>Required</strong> when <code>pipelineId</code> is set. Omit with <code>pipelineId</code> to use the admin default.</td></tr>
 						<tr><td><code>recruitmentManagerId</code></td><td><code>0</code></td><td>Cinode user ID of the responsible recruitment manager.</td></tr>
 						<tr><td><code>teamId</code></td><td><code>0</code></td><td>Team ID to associate with the application.</td></tr>
 						<tr><td><code>companyAddressId</code></td><td><code>0</code></td><td>Pre-select a company address. When <code>0</code> the location dropdown fetches all addresses.</td></tr>
@@ -650,7 +796,7 @@ function cinode_recruitment_settings_page()
 
 		<div class="postbox cinode-card">
 			<div class="postbox-header">
-				<h2 class="hndle"><span class="dashicons dashicons-tag" aria-hidden="true"></span> Field Label Parameters</h2>
+				<h2 class="hndle"><span class="dashicons dashicons-tag" aria-hidden="true"></span> <?php esc_html_e( 'Field Label Parameters', 'cinode-recruitment' ); ?></h2>
 			</div>
 			<div class="inside">
 				<p>Override any field label. Set a parameter to an empty string (<code>""</code>) to hide that field entirely.</p>
@@ -686,7 +832,7 @@ function cinode_recruitment_settings_page()
 
 		<div class="postbox cinode-card">
 			<div class="postbox-header">
-				<h2 class="hndle"><span class="dashicons dashicons-warning" aria-hidden="true"></span> Message &amp; Validation Parameters</h2>
+				<h2 class="hndle"><span class="dashicons dashicons-warning" aria-hidden="true"></span> <?php esc_html_e( 'Message & Validation Parameters', 'cinode-recruitment' ); ?></h2>
 			</div>
 			<div class="inside">
 				<table class="widefat striped cinode-ref-table">
@@ -700,7 +846,7 @@ function cinode_recruitment_settings_page()
 						<tr><td><code>unsuccessful-submit-msg</code></td><td>Message shown when the submission fails.</td></tr>
 						<tr><td><code>requiredfield_msg</code></td><td>Generic message used for unfilled required fields.</td></tr>
 						<tr><td><code>cv_required</code></td><td>Override the global CV-required setting: <code>"1"</code> = mandatory, <code>"0"</code> = optional.</td></tr>
-						<tr><td><code>parse_cv</code></td><td>Override the global parse-CV setting (subcontractors only): <code>"1"</code> or <code>"0"</code>.</td></tr>
+						<tr><td><code>parse_cv</code></td><td>Override the global parse-CV setting for candidate and subcontractor user profiles: <code>"1"</code> or <code>"0"</code>.</td></tr>
 						<tr><td><code>auto_subcontractor_group_ids</code></td><td>Override the global auto-join group IDs for this shortcode instance.</td></tr>
 					</tbody>
 				</table>
@@ -709,10 +855,10 @@ function cinode_recruitment_settings_page()
 
 		<div class="postbox cinode-card">
 			<div class="postbox-header">
-				<h2 class="hndle"><span class="dashicons dashicons-list-view" aria-hidden="true"></span> Multiple Pipelines</h2>
+				<h2 class="hndle"><span class="dashicons dashicons-list-view" aria-hidden="true"></span> <?php esc_html_e( 'Multiple Pipelines', 'cinode-recruitment' ); ?></h2>
 			</div>
 			<div class="inside">
-				<p>Let applicants choose from several open positions via a dropdown. Map each pipeline to its corresponding stage ID in order.</p>
+				<p>Let applicants choose from several open positions via a dropdown. Map each pipeline to its corresponding stage ID in order. This shortcode setting takes precedence over the candidate defaults.</p>
 				<table class="widefat striped cinode-ref-table">
 					<thead>
 						<tr>
@@ -741,8 +887,8 @@ function cinode_recruitment_settings_page()
 				</table>
 				<div class="cinode-code-block" style="margin-top:1rem;">
 					<code id="sc-multi">[cinode multiplepipelines="1235:Pipeline 1,1676:Pipeline 2" multiplepipeline_stageid="6003,7783" multiplepipelines_label="Select a position"]</code>
-					<button type="button" class="button cinode-copy-btn" data-clipboard-target="#sc-multi" aria-label="Copy shortcode">
-						<span class="dashicons dashicons-clipboard" aria-hidden="true"></span> Copy
+					<button type="button" class="button cinode-copy-btn" data-clipboard-target="#sc-multi" aria-label="<?php esc_attr_e( 'Copy shortcode', 'cinode-recruitment' ); ?>">
+						<span class="dashicons dashicons-clipboard" aria-hidden="true"></span> <?php esc_html_e( 'Copy', 'cinode-recruitment' ); ?>
 					</button>
 				</div>
 			</div>
@@ -750,13 +896,13 @@ function cinode_recruitment_settings_page()
 
 		<div class="postbox cinode-card">
 			<div class="postbox-header">
-				<h2 class="hndle"><span class="dashicons dashicons-media-text" aria-hidden="true"></span> Full Example &mdash; Candidate Mode</h2>
+				<h2 class="hndle"><span class="dashicons dashicons-media-text" aria-hidden="true"></span> <?php esc_html_e( 'Full Example — Candidate Mode', 'cinode-recruitment' ); ?></h2>
 			</div>
 			<div class="inside">
 				<div class="cinode-code-block">
-					<code id="sc-full">[cinode recipient_type="candidate" formtitle="Apply now" pipelineId="0" pipelineStageId="0" recruitmentManagerId="0" teamId="0" companyAddressId="0" recruitmentSourceId="0" campaignCode="" currencyId="1" firstname_label="First Name" lastname_label="Last Name" email_label="Email" phone_label="Phone" message_label="Cover Letter" linkedin_label="LinkedIn Profile" location_label="Location" availableFrom_label="Available from" attachment_label="Upload CV" accept_label="I accept the Privacy Policy" privacy_url="https://example.com/privacy" privacy_error="Please accept the privacy policy to continue." submitbutton_label="Submit Application" cv_required="0" successful-submit-msg="Thank you! We will be in touch soon." unsuccessful-submit-msg="Something went wrong. Please try again." requiredfield_msg="This field is required."]</code>
-					<button type="button" class="button cinode-copy-btn" data-clipboard-target="#sc-full" aria-label="Copy shortcode">
-						<span class="dashicons dashicons-clipboard" aria-hidden="true"></span> Copy
+					<code id="sc-full">[cinode recipient_type="candidate" formtitle="Apply now" pipelineId="0" pipelineStageId="0" recruitmentManagerId="0" teamId="0" companyAddressId="0" recruitmentSourceId="0" campaignCode="" currencyId="1" firstname_label="First Name" lastname_label="Last Name" email_label="Email" phone_label="Phone" message_label="Cover Letter" linkedin_label="LinkedIn Profile" location_label="Location" availableFrom_label="Available from" attachment_label="Upload CV" accept_label="I accept the Privacy Policy" privacy_url="https://example.com/privacy" privacy_error="Please accept the privacy policy to continue." submitbutton_label="Submit Application" cv_required="0" parse_cv="1" successful-submit-msg="Thank you! We will be in touch soon." unsuccessful-submit-msg="Something went wrong. Please try again." requiredfield_msg="This field is required."]</code>
+					<button type="button" class="button cinode-copy-btn" data-clipboard-target="#sc-full" aria-label="<?php esc_attr_e( 'Copy shortcode', 'cinode-recruitment' ); ?>">
+						<span class="dashicons dashicons-clipboard" aria-hidden="true"></span> <?php esc_html_e( 'Copy', 'cinode-recruitment' ); ?>
 					</button>
 				</div>
 			</div>
@@ -764,13 +910,13 @@ function cinode_recruitment_settings_page()
 
 		<div class="postbox cinode-card">
 			<div class="postbox-header">
-				<h2 class="hndle"><span class="dashicons dashicons-businessperson" aria-hidden="true"></span> Full Example &mdash; Subcontractor Mode</h2>
+				<h2 class="hndle"><span class="dashicons dashicons-businessperson" aria-hidden="true"></span> <?php esc_html_e( 'Full Example — Subcontractor Mode', 'cinode-recruitment' ); ?></h2>
 			</div>
 			<div class="inside">
 				<div class="cinode-code-block">
 					<code id="sc-full-sub">[cinode recipient_type="subcontractor" formtitle="Join our network" firstname_label="First Name" lastname_label="Last Name" email_label="Email" phone_label="Phone" message_label="Cover Letter" linkedin_label="LinkedIn Profile" attachment_label="Upload CV" accept_label="I accept the Privacy Policy" privacy_url="https://example.com/privacy" privacy_error="Please accept the privacy policy to continue." submitbutton_label="Submit" cv_required="1" parse_cv="1" show_subcontractor_groups="1" subcontractor_group_ids="" subcontractor_group_selection="single" groups_label="Apply to group:" auto_subcontractor_group_ids="" gender_label="Gender" gender_option_male="Male" gender_option_female="Female" gender_option_other="Other / prefer not to say" successful-submit-msg="Thank you! We will be in touch soon." unsuccessful-submit-msg="Something went wrong. Please try again." requiredfield_msg="This field is required."]</code>
-					<button type="button" class="button cinode-copy-btn" data-clipboard-target="#sc-full-sub" aria-label="Copy shortcode">
-						<span class="dashicons dashicons-clipboard" aria-hidden="true"></span> Copy
+					<button type="button" class="button cinode-copy-btn" data-clipboard-target="#sc-full-sub" aria-label="<?php esc_attr_e( 'Copy shortcode', 'cinode-recruitment' ); ?>">
+						<span class="dashicons dashicons-clipboard" aria-hidden="true"></span> <?php esc_html_e( 'Copy', 'cinode-recruitment' ); ?>
 					</button>
 				</div>
 			</div>
@@ -784,20 +930,20 @@ function cinode_recruitment_settings_page()
 			<div class="postbox-header">
 				<h2 class="hndle">
 					<span class="dashicons dashicons-shield-alt" aria-hidden="true"></span>
-					Google reCAPTCHA
+					<?php esc_html_e( 'Google reCAPTCHA', 'cinode-recruitment' ); ?>
 				</h2>
 			</div>
 			<div class="inside">
-				<p>Protect your recruitment form from spam submissions using Google reCAPTCHA.</p>
+				<p><?php esc_html_e( 'Protect your recruitment form from spam submissions using Google reCAPTCHA.', 'cinode-recruitment' ); ?></p>
 				<ol class="cinode-step-list">
 					<li>
-						Go to the <a href="https://www.google.com/recaptcha/admin/create" target="_blank" rel="noopener noreferrer">Google reCAPTCHA Admin Console <span class="dashicons dashicons-external" style="font-size:0.85em;vertical-align:middle;" aria-hidden="true"></span></a> and register your site to obtain a <strong>Site Key</strong> and <strong>Secret Key</strong>.
+						<?php printf( wp_kses( __( 'Go to the %1$sGoogle reCAPTCHA Admin Console %2$s%3$s and register your site to obtain a %4$sSite Key%5$s and %4$sSecret Key%5$s.', 'cinode-recruitment' ), array( 'a' => array( 'href' => array(), 'target' => array(), 'rel' => array() ), 'span' => array( 'class' => array(), 'style' => array(), 'aria-hidden' => array() ), 'strong' => array() ) ), '<a href="https://www.google.com/recaptcha/admin/create" target="_blank" rel="noopener noreferrer">', '<span class="dashicons dashicons-external" style="font-size:0.85em;vertical-align:middle;" aria-hidden="true"></span>', '</a>', '<strong>', '</strong>' ); ?>
 					</li>
 					<li>
-						Install the <a href="https://wordpress.org/plugins/advanced-nocaptcha-recaptcha/" target="_blank" rel="noopener noreferrer">CAPTCHA 4WP <span class="dashicons dashicons-external" style="font-size:0.85em;vertical-align:middle;" aria-hidden="true"></span></a> plugin from the WordPress plugin directory.
+						<?php printf( wp_kses( __( 'Install the %1$sCAPTCHA 4WP %2$s%3$s plugin from the WordPress plugin directory.', 'cinode-recruitment' ), array( 'a' => array( 'href' => array(), 'target' => array(), 'rel' => array() ), 'span' => array( 'class' => array(), 'style' => array(), 'aria-hidden' => array() ) ) ), '<a href="https://wordpress.org/plugins/advanced-nocaptcha-recaptcha/" target="_blank" rel="noopener noreferrer">', '<span class="dashicons dashicons-external" style="font-size:0.85em;vertical-align:middle;" aria-hidden="true"></span>', '</a>' ); ?>
 					</li>
-					<li>In the CAPTCHA 4WP settings, enter your <strong>Site Key</strong> and <strong>Secret Key</strong>.</li>
-					<li>The Cinode Recruitment form will automatically integrate with reCAPTCHA once the plugin is configured.</li>
+					<li><?php printf( wp_kses( __( 'In the CAPTCHA 4WP settings, enter your %1$sSite Key%2$s and %1$sSecret Key%2$s.', 'cinode-recruitment' ), array( 'strong' => array() ) ), '<strong>', '</strong>' ); ?></li>
+					<li><?php esc_html_e( 'The Cinode Recruitment form will automatically integrate with reCAPTCHA once the plugin is configured.', 'cinode-recruitment' ); ?></li>
 				</ol>
 			</div>
 		</div>

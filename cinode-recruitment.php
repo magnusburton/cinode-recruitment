@@ -16,7 +16,7 @@
  * Plugin Name:       Cinode
  * Plugin URI:        cinode.com
  * Description:       Integrate your WordPress site with Cinode's Recruitment module. Capture candidate and subcontractor applications directly into your Cinode instance.
- * Version:           1.6.0
+ * Version:           1.6.3
  * Author:            Cinode
  * Author URI:        cinode.com
  * License:           GPL-2.0+
@@ -32,7 +32,7 @@ if (!defined('WPINC')) {
 /**
  * Currently plugin version.
  */
-define('CINODE_RECRUITMENT_VERSION', '1.6.0');
+define('CINODE_RECRUITMENT_VERSION', '1.6.3');
 
 /**
  * The code that runs during plugin activation.
@@ -183,7 +183,7 @@ function cinode_recruitment_route()
 					),
 					'parse_cv' => array(
 						'type' => 'string',
-						'description' => 'Whether to import the uploaded CV into the subcontractor profile',
+						'description' => 'Whether to import the uploaded CV into the applicant\'s Cinode user profile',
 					),
 
 					'files' => array(),
@@ -199,6 +199,10 @@ function cinodeRecruitmentPost($postData)
 	$cinode_recruitment_options = get_option('cinode_recruitment_options');
 	$companyId = $cinode_recruitment_options['option_companyId'];
 	$token = $cinode_recruitment_options['option_apiKey'];
+
+	if (!cinode_recruitment_uploaded_cv_is_valid($postData)) {
+		return cinode_recruitment_rest_status_response(415);
+	}
 
 	$recipient_type = sanitize_text_field($postData['recipient_type'] ?? 'candidate');
 
@@ -266,6 +270,13 @@ function cinodeRecruitmentPost($postData)
 	if ($response_code === 201) {
 		$json_response = json_decode(wp_remote_retrieve_body($post_result), true);
 		$candidateId   = $json_response['id'] ?? null;
+		$companyUserId = cinode_recruitment_get_company_user_id($json_response);
+
+		// Parse CV first (reads from PHP tmp before it is moved by the attachment upload)
+		$parse_cv = $postData['parse_cv'] ?? '0';
+		if (($parse_cv === '1' || $parse_cv === true) && !empty($companyUserId) && !empty($postData->get_file_params())) {
+			cinode_recruitment_import_user_profile($postData, $companyUserId, $companyId, $token);
+		}
 
 		if ($candidateId && !empty($postData->get_file_params())) {
 			cinode_recruitment_upload_file($postData, $candidateId);
@@ -274,7 +285,7 @@ function cinodeRecruitmentPost($postData)
 		cinode_recruitment_send_mail(sanitize_email($postData['email']));
 	}
 
-	return new WP_REST_Response(array('status' => $response_code), 200);
+	return cinode_recruitment_rest_status_response($response_code);
 }
 
 function cinode_recruitment_create_subcontractor($postData, $companyId, $token, $options)
@@ -303,10 +314,6 @@ function cinode_recruitment_create_subcontractor($postData, $companyId, $token, 
 		'createProfile'   => true,
 	);
 
-	if (!empty($postData['companyAddressId'])) {
-		$body['companyAddressId'] = intval($postData['companyAddressId']);
-	}
-
 	$args = array(
 		'body'    => wp_json_encode($body),
 		'headers' => array(
@@ -324,7 +331,7 @@ function cinode_recruitment_create_subcontractor($postData, $companyId, $token, 
 		// id = subcontractor entity ID (used for URL paths like /attachments, /send-welcome-email)
 		// companyUserId = user account ID (used for /users/{id}/profile/import and group membership)
 		$subcontractorId = $json_response['id'];
-		$companyUserId   = $json_response['companyUserId'];
+		$companyUserId   = cinode_recruitment_get_company_user_id($json_response);
 
 		// Add to requested subcontractor groups
 		$group_ids = $postData['subcontractorGroupIds'] ?? array();
@@ -341,7 +348,7 @@ function cinode_recruitment_create_subcontractor($postData, $companyId, $token, 
 		// Parse CV first (reads from PHP tmp before it is moved by the attachment upload)
 		$parse_cv = $postData['parse_cv'] ?? '0';
 		if (($parse_cv === '1' || $parse_cv === true) && !empty($companyUserId) && !empty($postData->get_file_params())) {
-			cinode_recruitment_import_subcontractor_profile($postData, $companyUserId, $companyId, $token);
+			cinode_recruitment_import_user_profile($postData, $companyUserId, $companyId, $token);
 		}
 
 		// Upload file as attachment
@@ -363,10 +370,61 @@ function cinode_recruitment_create_subcontractor($postData, $companyId, $token, 
 		cinode_recruitment_send_mail(sanitize_email($postData['email']));
 	}
 
-	return new WP_REST_Response(array('status' => $response_code), 200);
+	return cinode_recruitment_rest_status_response($response_code);
+}
+
+function cinode_recruitment_rest_status_response($status)
+{
+	return new WP_REST_Response(array('status' => $status), $status);
 }
 
 add_action('rest_api_init', 'cinode_recruitment_route');
+
+function cinode_recruitment_allowed_cv_mimes()
+{
+	return array(
+		'pdf'  => 'application/pdf',
+		'doc'  => 'application/msword',
+		'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+	);
+}
+
+function cinode_recruitment_uploaded_cv_is_valid($request)
+{
+	$files = $request->get_file_params();
+
+	if (empty($files['files'])) {
+		return true;
+	}
+
+	if (empty($files['files']['tmp_name']) || empty($files['files']['name']) || !is_uploaded_file($files['files']['tmp_name'])) {
+		return false;
+	}
+
+	$file_check = wp_check_filetype_and_ext($files['files']['tmp_name'], $files['files']['name'], cinode_recruitment_allowed_cv_mimes());
+
+	return !empty($file_check['ext']) && !empty($file_check['type']);
+}
+
+function cinode_recruitment_get_company_user_id($response)
+{
+	if (!is_array($response)) {
+		return null;
+	}
+
+	$companyUserId = $response['companyUserId'] ?? null;
+
+	if ($companyUserId === null) {
+		$companyUser = $response['companyUser'] ?? null;
+		if (is_array($companyUser)) {
+			$companyUserId = $companyUser['companyUserId'] ?? $companyUser['id'] ?? null;
+		}
+	}
+
+	$companyUserId = intval($companyUserId);
+
+	return $companyUserId > 0 ? $companyUserId : null;
+}
 
 function cinode_recruitment_upload_file($request, $candidateId)
 {
@@ -377,15 +435,7 @@ function cinode_recruitment_upload_file($request, $candidateId)
 		return;
 	}
 
-	$allowed_mimes = array(
-		'pdf'  => 'application/pdf',
-		'doc'  => 'application/msword',
-		'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-		'odt'  => 'application/vnd.oasis.opendocument.text',
-		'rtf'  => 'application/rtf',
-		'txt'  => 'text/plain',
-	);
-	$file_check = wp_check_filetype_and_ext($files['files']['tmp_name'], $files['files']['name'], $allowed_mimes);
+	$file_check = wp_check_filetype_and_ext($files['files']['tmp_name'], $files['files']['name'], cinode_recruitment_allowed_cv_mimes());
 	if (empty($file_check['ext']) || empty($file_check['type'])) {
 		return;
 	}
@@ -450,15 +500,7 @@ function cinode_recruitment_upload_subcontractor_file($request, $subcontractorId
 		return;
 	}
 
-	$allowed_mimes = array(
-		'pdf'  => 'application/pdf',
-		'doc'  => 'application/msword',
-		'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-		'odt'  => 'application/vnd.oasis.opendocument.text',
-		'rtf'  => 'application/rtf',
-		'txt'  => 'text/plain',
-	);
-	$file_check = wp_check_filetype_and_ext($files['files']['tmp_name'], $files['files']['name'], $allowed_mimes);
+	$file_check = wp_check_filetype_and_ext($files['files']['tmp_name'], $files['files']['name'], cinode_recruitment_allowed_cv_mimes());
 	if (empty($file_check['ext']) || empty($file_check['type'])) {
 		return;
 	}
@@ -506,7 +548,7 @@ function cinode_recruitment_upload_subcontractor_file($request, $subcontractorId
 	return $result;
 }
 
-function cinode_recruitment_import_subcontractor_profile($request, $companyUserId, $companyId, $token)
+function cinode_recruitment_import_user_profile($request, $companyUserId, $companyId, $token)
 {
 	$files    = $request->get_file_params();
 	$tmp_path = $files['files']['tmp_name'] ?? '';
@@ -516,9 +558,18 @@ function cinode_recruitment_import_subcontractor_profile($request, $companyUserI
 		return;
 	}
 
+	$file_check = wp_check_filetype_and_ext($tmp_path, $files['files']['name'], cinode_recruitment_allowed_cv_mimes());
+	if (empty($file_check['ext']) || empty($file_check['type'])) {
+		return;
+	}
+
 	$file_data = file_get_contents($tmp_path);
+	if ($file_data === false) {
+		return;
+	}
+
 	$file_name = $files['files']['name'];
-	$file_type = $files['files']['type'];
+	$file_type = $file_check['type'];
 	$boundary  = cinode_recruitment_boundary();
 
 	$url = 'https://api.cinode.app/v0.1/companies/' . $companyId . '/users/' . $companyUserId . '/profile/import';
@@ -543,6 +594,11 @@ function cinode_recruitment_import_subcontractor_profile($request, $companyUserI
 	);
 
 	return wp_remote_post($url, $args);
+}
+
+function cinode_recruitment_import_subcontractor_profile($request, $companyUserId, $companyId, $token)
+{
+	return cinode_recruitment_import_user_profile($request, $companyUserId, $companyId, $token);
 }
 
 function cinode_recruitment_add_to_subcontractor_group($companyId, $token, $companyUserId, $groupId)
@@ -768,6 +824,10 @@ add_shortcode('cinode', 'cinode_recruitment_shortcode');
 function cinode_recruitment_shortcode($atts = [])
 {
 	$atts = array_change_key_case((array) $atts, CASE_LOWER);
+	$has_shortcode_pipeline_config = array_key_exists('pipelineid', $atts)
+		|| array_key_exists('pipelinestageid', $atts)
+		|| array_key_exists('multiplepipelines', $atts)
+		|| array_key_exists('multiplepipeline_stageid', $atts);
 
 	$args = shortcode_atts(array(
 		'pipelineid' => 0,
@@ -828,6 +888,23 @@ function cinode_recruitment_shortcode($atts = [])
 	$subcontractor_group_sel     = $args['subcontractor_group_selection'] !== '' ? $args['subcontractor_group_selection'] : ($cinode_options['option_subcontractor_group_selection'] ?? 'single');
 	$auto_group_ids              = $args['auto_subcontractor_group_ids'] !== '' ? $args['auto_subcontractor_group_ids'] : ($cinode_options['option_auto_subcontractor_group_ids'] ?? '');
 	$is_subcontractor = $args['recipient_type'] === 'subcontractor';
+	$effective_pipeline_id = 0;
+	$effective_pipeline_stage_id = 0;
+
+	if (!$is_subcontractor) {
+		if ($has_shortcode_pipeline_config) {
+			$effective_pipeline_id = intval($args['pipelineid']);
+			$effective_pipeline_stage_id = intval($args['pipelinestageid']);
+		} else {
+			$default_pipeline_id = intval($cinode_options['option_default_candidate_pipeline_id'] ?? 0);
+			$default_pipeline_stage_id = intval($cinode_options['option_default_candidate_pipeline_stage_id'] ?? 0);
+
+			if ($default_pipeline_id > 0 && $default_pipeline_stage_id > 0) {
+				$effective_pipeline_id = $default_pipeline_id;
+				$effective_pipeline_stage_id = $default_pipeline_stage_id;
+			}
+		}
+	}
 
 	// Unique counter so multiple shortcodes on the same page each get
 	// distinct element IDs and their own per-form JS configuration.
@@ -845,8 +922,8 @@ function cinode_recruitment_shortcode($atts = [])
 
 		<h2><?php echo esc_html($args['formtitle']); ?></h2>
 		<div role="form" class="cinode-form"
-			data-pipeline-id="<?php echo intval($args['pipelineid']); ?>"
-			data-pipeline-stage-id="<?php echo intval($args['pipelinestageid']); ?>"
+			data-pipeline-id="<?php echo intval($effective_pipeline_id); ?>"
+			data-pipeline-stage-id="<?php echo intval($effective_pipeline_stage_id); ?>"
 			data-recruitment-manager-id="<?php echo intval($args['recruitmentmanagerid']); ?>"
 			data-team-id="<?php echo intval($args['teamid']); ?>"
 			data-company-address-id="<?php echo intval($args['companyaddressid']); ?>"
@@ -926,7 +1003,7 @@ function cinode_recruitment_shortcode($atts = [])
 					<br>
 					<div for="file-upload-<?php echo esc_attr($uid); ?>" class="custom-file-upload ">
 						<?php echo esc_html($args['attachment_label']); ?><?php if ($cv_required) echo ' *'; ?>
-						<input id="file-upload-<?php echo esc_attr($uid); ?>" class="file-upload" type="file" />
+						<input id="file-upload-<?php echo esc_attr($uid); ?>" class="file-upload" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
 						<label class="file-name"></label>
 						<?php if ($cv_required) : ?>
 						<span role="alert" id="file-required-<?php echo esc_attr($uid); ?>" class="alert-required cinode-file-required" style="display:none"><?php echo esc_html($args['requiredfield_msg']); ?></span>

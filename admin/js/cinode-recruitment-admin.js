@@ -66,6 +66,40 @@
 		// Restore active tab on load.
 		activateTab( resolveInitialTab() );
 
+		function syncCandidateDefaultStages() {
+			var $pipeline = $( '#cinode_default_candidate_pipeline_id' );
+			var $stage    = $( '#cinode_default_candidate_pipeline_stage_id' );
+
+			if ( ! $pipeline.length || ! $stage.length || ! $stage.is( 'select' ) ) {
+				return;
+			}
+
+			var selectedPipeline = parseInt( $pipeline.val() || 0, 10 );
+			var selectedStageIsVisible = false;
+
+			$stage.find( 'option' ).each( function() {
+				var $option = $( this );
+				var optionPipeline = parseInt( $option.data( 'pipeline-id' ) || 0, 10 );
+				var shouldShow = optionPipeline === 0 || ( selectedPipeline > 0 && optionPipeline === selectedPipeline );
+
+				$option.prop( 'hidden', ! shouldShow ).prop( 'disabled', ! shouldShow );
+
+				if ( shouldShow && $option.is( ':selected' ) ) {
+					selectedStageIsVisible = true;
+				}
+			} );
+
+			var i18n = ( window.cinodeRecruitmentAdmin && window.cinodeRecruitmentAdmin.i18n ) || {};
+			$stage.find( 'option[value="0"]' ).text( selectedPipeline > 0 ? ( i18n.selectAStage || 'Select a stage' ) : ( i18n.selectAPipelineFirst || 'Select a pipeline first' ) );
+
+			if ( ! selectedStageIsVisible ) {
+				$stage.val( '0' );
+			}
+		}
+
+		$( '#cinode_default_candidate_pipeline_id' ).on( 'change', syncCandidateDefaultStages );
+		syncCandidateDefaultStages();
+
 
 		// ---- Copy-to-clipboard ------------------------------------
 		$( document ).on( 'click', '.cinode-copy-btn', function() {
@@ -75,7 +109,8 @@
 			var original = $btn.html();
 
 			function onSuccess() {
-				$btn.html( '<span class="dashicons dashicons-yes" aria-hidden="true"></span> Copied!' );
+				var i18n = ( window.cinodeRecruitmentAdmin && window.cinodeRecruitmentAdmin.i18n ) || {};
+				$btn.html( '<span class="dashicons dashicons-yes" aria-hidden="true"></span> ' + ( i18n.copied || 'Copied!' ) );
 				setTimeout( function() {
 					$btn.html( original );
 				}, 2000 );
