@@ -264,18 +264,26 @@ function cinodeRecruitmentPost($postData)
 		),
 	);
 
-	$post_result   = wp_remote_post($url, $args);
+	$post_result = wp_remote_post($url, $args);
+
+	if (is_wp_error($post_result)) {
+		error_log('Cinode Recruitment: candidate create failed – ' . $post_result->get_error_message());
+		return cinode_recruitment_rest_status_response(500);
+	}
+
 	$response_code = wp_remote_retrieve_response_code($post_result);
 
 	if ($response_code === 201) {
 		$json_response = json_decode(wp_remote_retrieve_body($post_result), true);
 		$candidateId   = $json_response['id'] ?? null;
-		$companyUserId = cinode_recruitment_get_company_user_id($json_response);
 
-		// Parse CV first (reads from PHP tmp before it is moved by the attachment upload)
+		// Parse CV: first create a user account for the candidate, then import the CV
 		$parse_cv = $postData['parse_cv'] ?? '0';
-		if (($parse_cv === '1' || $parse_cv === true) && !empty($companyUserId) && !empty($postData->get_file_params())) {
-			cinode_recruitment_import_user_profile($postData, $companyUserId, $companyId, $token);
+		if (($parse_cv === '1' || $parse_cv === true) && !empty($candidateId) && !empty($postData->get_file_params())) {
+			$companyUserId = cinode_recruitment_create_candidate_user($postData, $candidateId, $companyId, $token);
+			if (!empty($companyUserId)) {
+				cinode_recruitment_import_user_profile($postData, $companyUserId, $companyId, $token);
+			}
 		}
 
 		if ($candidateId && !empty($postData->get_file_params())) {
@@ -323,7 +331,13 @@ function cinode_recruitment_create_subcontractor($postData, $companyId, $token, 
 		),
 	);
 
-	$post_result   = wp_remote_post($url, $args);
+	$post_result = wp_remote_post($url, $args);
+
+	if (is_wp_error($post_result)) {
+		error_log('Cinode Recruitment: subcontractor create failed – ' . $post_result->get_error_message());
+		return cinode_recruitment_rest_status_response(500);
+	}
+
 	$response_code = wp_remote_retrieve_response_code($post_result);
 
 	if ($response_code === 201) {
@@ -426,9 +440,57 @@ function cinode_recruitment_get_company_user_id($response)
 	return $companyUserId > 0 ? $companyUserId : null;
 }
 
+function cinode_recruitment_create_candidate_user($postData, $candidateId, $companyId, $token)
+{
+	$url = 'https://api.cinode.app/v0.1/companies/' . $companyId . '/candidates/' . intval($candidateId) . '/user';
+
+	$password = wp_generate_password(20, true, true);
+
+	$cinode_recruitment_options = get_option('cinode_recruitment_options');
+	$language_id = intval($cinode_recruitment_options['option_subcontractor_default_language_id'] ?? 0);
+	if ($language_id < 1) {
+		$language_id = 714; // Default to Swedish if not configured
+	}
+
+	$body = array(
+		'firstName'         => sanitize_text_field($postData['firstName']),
+		'lastName'          => sanitize_text_field($postData['lastName']),
+		'email'             => sanitize_email($postData['email']),
+		'password'          => $password,
+		'confirmPassword'   => $password,
+		'languageId'        => $language_id,
+		'profileLanguageId' => $language_id,
+		'createProfile'     => true,
+	);
+
+	$args = array(
+		'body'    => wp_json_encode($body),
+		'headers' => array(
+			'Accept'        => 'text/plain, application/json, text/json, application/xml, text/xml',
+			'Content-Type'  => 'application/json',
+			'Authorization' => 'Bearer ' . $token,
+		),
+	);
+
+	$result = wp_remote_post($url, $args);
+
+	if (is_wp_error($result)) {
+		error_log('Cinode Recruitment: candidate user create failed – ' . $result->get_error_message());
+		return null;
+	}
+
+	$response_code = wp_remote_retrieve_response_code($result);
+
+	if ($response_code === 200 || $response_code === 201) {
+		$json_response = json_decode(wp_remote_retrieve_body($result), true);
+		return cinode_recruitment_get_company_user_id($json_response);
+	}
+
+	return null;
+}
+
 function cinode_recruitment_upload_file($request, $candidateId)
 {
-	// Get the file
 	$files = $request->get_file_params();
 
 	if (empty($files['files']['tmp_name']) || !is_uploaded_file($files['files']['tmp_name'])) {
@@ -461,35 +523,14 @@ function cinode_recruitment_upload_file($request, $candidateId)
 
 	$url_attach = 'https://api.cinode.app/v0.1/companies/' . $companyId . '/candidates/' . $candidateId . '/attachments';
 
-	$boundary = cinode_recruitment_boundary();
-
-	$body = '';
-	$body .= '--' . $boundary . "\r\n";
-	$body .= 'Content-Disposition: form-data; name="files"; filename="' . basename($path) . "\"\r\n";
-	$body .= 'Content-Type: ' . $type . "\r\n\r\n";
-	$body .= $file_data . "\r\n";
-	$body .= '--' . $boundary . "\r\n";
-	$body .= 'Content-Disposition: form-data; name="title"' . "\r\n";
-	$body .= 'Content-Type: application/json' . "\r\n\r\n";
-	$body .= $name . "\r\n";
-	$body .= '--' . $boundary . '--' . "\r\n";
-
-
-	$args = array(
-		'body' => $body,
-		'headers' => array(
-			'Accept' => 'text/plain, application/json, text/json, application/xml, text/xml',
-			'Content-Type' => 'multipart/form-data; boundary=' . $boundary,
-			'Authorization' => 'Bearer ' . $token,
-		),
-
-	);
-
-	$post_attach_result = wp_remote_post($url_attach, $args);
+	$result = cinode_recruitment_multipart_post($url_attach, $token, array(
+		array('name' => 'files', 'filename' => basename($path), 'type' => $type, 'data' => $file_data),
+		array('name' => 'title', 'data' => $name),
+	));
 
 	wp_delete_file($path);
 
-	return $post_attach_result;
+	return $result;
 }
 
 function cinode_recruitment_upload_subcontractor_file($request, $subcontractorId, $companyId, $token)
@@ -520,29 +561,13 @@ function cinode_recruitment_upload_subcontractor_file($request, $subcontractorId
 		$file_data = '';
 	}
 
-	$url      = 'https://api.cinode.app/v0.1/companies/' . $companyId . '/subcontractors/' . $subcontractorId . '/attachments';
-	$boundary = cinode_recruitment_boundary();
+	$url = 'https://api.cinode.app/v0.1/companies/' . $companyId . '/subcontractors/' . $subcontractorId . '/attachments';
 
-	$body  = '--' . $boundary . "\r\n";
-	$body .= 'Content-Disposition: form-data; name="files"; filename="' . basename($path) . "\"\r\n";
-	$body .= 'Content-Type: ' . $type . "\r\n\r\n";
-	$body .= $file_data . "\r\n";
-	$body .= '--' . $boundary . "\r\n";
-	$body .= 'Content-Disposition: form-data; name="title"' . "\r\n";
-	$body .= 'Content-Type: application/json' . "\r\n\r\n";
-	$body .= $name . "\r\n";
-	$body .= '--' . $boundary . '--' . "\r\n";
+	$result = cinode_recruitment_multipart_post($url, $token, array(
+		array('name' => 'files', 'filename' => basename($path), 'type' => $type, 'data' => $file_data),
+		array('name' => 'title', 'data' => $name),
+	));
 
-	$args = array(
-		'body'    => $body,
-		'headers' => array(
-			'Accept'        => 'text/plain, application/json, text/json, application/xml, text/xml',
-			'Content-Type'  => 'multipart/form-data; boundary=' . $boundary,
-			'Authorization' => 'Bearer ' . $token,
-		),
-	);
-
-	$result = wp_remote_post($url, $args);
 	wp_delete_file($path);
 
 	return $result;
@@ -570,30 +595,13 @@ function cinode_recruitment_import_user_profile($request, $companyUserId, $compa
 
 	$file_name = $files['files']['name'];
 	$file_type = $file_check['type'];
-	$boundary  = cinode_recruitment_boundary();
 
 	$url = 'https://api.cinode.app/v0.1/companies/' . $companyId . '/users/' . $companyUserId . '/profile/import';
 
-	$body  = '--' . $boundary . "\r\n";
-	$body .= 'Content-Disposition: form-data; name="File"; filename="' . $file_name . "\"\r\n";
-	$body .= 'Content-Type: ' . $file_type . "\r\n\r\n";
-	$body .= $file_data . "\r\n";
-	$body .= '--' . $boundary . "\r\n";
-	$body .= 'Content-Disposition: form-data; name="ImportSkills"' . "\r\n\r\n";
-	$body .= "true\r\n";
-	$body .= '--' . $boundary . '--' . "\r\n";
-
-	$args = array(
-		'body'    => $body,
-		'headers' => array(
-			'Accept'        => 'text/plain, application/json, text/json, application/xml, text/xml',
-			'Content-Type'  => 'multipart/form-data; boundary=' . $boundary,
-			'Authorization' => 'Bearer ' . $token,
-		),
-		'timeout' => 30,
-	);
-
-	return wp_remote_post($url, $args);
+	return cinode_recruitment_multipart_post($url, $token, array(
+		array('name' => 'File', 'filename' => $file_name, 'type' => $file_type, 'data' => $file_data),
+		array('name' => 'ImportSkills', 'data' => 'true'),
+	), 30);
 }
 
 function cinode_recruitment_import_subcontractor_profile($request, $companyUserId, $companyId, $token)
@@ -683,6 +691,81 @@ function cinode_recruitment_subcontractor_groups($label, $allowed_ids_string, $s
 		}
 		echo '</select><br>';
 	}
+}
+
+/**
+ * Allowed field names for multipart parts.
+ * Reject anything unexpected to prevent header injection via the name param.
+ */
+function cinode_recruitment_allowed_multipart_names()
+{
+	return array('files', 'File', 'title', 'ImportSkills');
+}
+
+/**
+ * Sanitize a filename for safe interpolation into a Content-Disposition header.
+ * Strips path components, quotes, CR/LF, and null bytes.
+ */
+function cinode_recruitment_sanitize_multipart_filename($filename)
+{
+	// Use WP's own sanitizer first (removes path traversal, special chars, etc.)
+	$filename = sanitize_file_name($filename);
+	// Strip characters that can break or inject into MIME headers
+	$filename = str_replace(array('"', "\r", "\n", "\0"), '', $filename);
+	return $filename;
+}
+
+function cinode_recruitment_multipart_post($url, $token, $parts, $timeout = 0)
+{
+	$boundary       = cinode_recruitment_boundary();
+	$body           = '';
+	$allowed_names  = cinode_recruitment_allowed_multipart_names();
+
+	foreach ($parts as $part) {
+		$name = $part['name'] ?? '';
+		if (!in_array($name, $allowed_names, true)) {
+			continue; // skip unknown field names
+		}
+
+		if (!isset($part['data'])) {
+			continue; // every part must carry data
+		}
+
+		$body .= '--' . $boundary . "\r\n";
+
+		if (!empty($part['filename'])) {
+			$safe_filename = cinode_recruitment_sanitize_multipart_filename($part['filename']);
+			$safe_type     = preg_replace('/[\r\n]/', '', $part['type'] ?? 'application/octet-stream');
+			$body .= 'Content-Disposition: form-data; name="' . $name . '"; filename="' . $safe_filename . "\"\r\n";
+			$body .= 'Content-Type: ' . $safe_type . "\r\n";
+		} else {
+			$body .= 'Content-Disposition: form-data; name="' . $name . '"' . "\r\n";
+			if (isset($part['type'])) {
+				$safe_type = preg_replace('/[\r\n]/', '', $part['type']);
+				$body .= 'Content-Type: ' . $safe_type . "\r\n";
+			}
+		}
+
+		$body .= "\r\n";
+		$body .= $part['data'] . "\r\n";
+	}
+
+	$body .= '--' . $boundary . "--\r\n";
+
+	$args = array(
+		'body'    => $body,
+		'headers' => array(
+			'Accept'        => 'text/plain, application/json, text/json, application/xml, text/xml',
+			'Content-Type'  => 'multipart/form-data; boundary=' . $boundary,
+			'Authorization' => 'Bearer ' . $token,
+		),
+	);
+
+	if ($timeout > 0) {
+		$args['timeout'] = $timeout;
+	}
+
+	return wp_remote_post($url, $args);
 }
 
 function cinode_recruitment_boundary()
