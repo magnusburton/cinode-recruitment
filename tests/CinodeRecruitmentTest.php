@@ -150,7 +150,7 @@ class CinodeRecruitmentTest extends TestCase
         $this->assertSame('jane@example.com', $body['email']);
         $this->assertTrue($body['createProfile']);
         $this->assertSame(714, $body['languageId']);
-        $this->assertSame(714, $body['profileLanguageId']);
+        $this->assertArrayNotHasKey('profileLanguageId', $body);
         // Password pair must match
         $this->assertSame($body['password'], $body['confirmPassword']);
         $this->assertNotEmpty($body['password']);
@@ -169,7 +169,7 @@ class CinodeRecruitmentTest extends TestCase
 
         $body = json_decode($this->httpLog[0]['args']['body'], true);
         $this->assertSame(123, $body['languageId']);
-        $this->assertSame(123, $body['profileLanguageId']);
+        $this->assertArrayNotHasKey('profileLanguageId', $body);
     }
 
     #[Test]

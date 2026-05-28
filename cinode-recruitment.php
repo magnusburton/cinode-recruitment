@@ -459,7 +459,6 @@ function cinode_recruitment_create_candidate_user($postData, $candidateId, $comp
 		'password'          => $password,
 		'confirmPassword'   => $password,
 		'languageId'        => $language_id,
-		'profileLanguageId' => $language_id,
 		'createProfile'     => true,
 	);
 
@@ -486,6 +485,7 @@ function cinode_recruitment_create_candidate_user($postData, $candidateId, $comp
 		return cinode_recruitment_get_company_user_id($json_response);
 	}
 
+	error_log('Cinode Recruitment: candidate user create returned HTTP ' . $response_code . ' – ' . wp_remote_retrieve_body($result));
 	return null;
 }
 
@@ -598,10 +598,21 @@ function cinode_recruitment_import_user_profile($request, $companyUserId, $compa
 
 	$url = 'https://api.cinode.app/v0.1/companies/' . $companyId . '/users/' . $companyUserId . '/profile/import';
 
-	return cinode_recruitment_multipart_post($url, $token, array(
+	$result = cinode_recruitment_multipart_post($url, $token, array(
 		array('name' => 'File', 'filename' => $file_name, 'type' => $file_type, 'data' => $file_data),
 		array('name' => 'ImportSkills', 'data' => 'true'),
 	), 30);
+
+	if (is_wp_error($result)) {
+		error_log('Cinode Recruitment: profile import failed – ' . $result->get_error_message());
+	} else {
+		$response_code = wp_remote_retrieve_response_code($result);
+		if ($response_code < 200 || $response_code >= 300) {
+			error_log('Cinode Recruitment: profile import returned HTTP ' . $response_code . ' – ' . wp_remote_retrieve_body($result));
+		}
+	}
+
+	return $result;
 }
 
 function cinode_recruitment_import_subcontractor_profile($request, $companyUserId, $companyId, $token)
